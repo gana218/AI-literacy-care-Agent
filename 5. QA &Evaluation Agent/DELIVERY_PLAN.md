@@ -67,15 +67,6 @@ Demo Ready
 | Demo Validation | 시연 환경 점검 |
 | Deployment Check | 제출 환경 검증 |
 
-### 직접 책임지지 않는 것
-
-| 영역 | 담당 |
-|------|------|
-| Content Reducer 구현 | 2번 |
-| Focus Score 계산 | 3번 |
-| UI 구현 | 4번 |
-| Orchestrator 구현 | 1번 |
-
 ---
 
 ## 4. Milestone Overview
