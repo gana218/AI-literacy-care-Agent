@@ -1,11 +1,18 @@
 import { Outlet, NavLink, useLocation } from 'react-router-dom';
+import { useFocusStore } from '../../stores/focusStore';
+import { useReadingStore } from '../../stores/readingStore';
 
 /**
- * RootLayout — 모든 페이지 공통 헤더 + 레이아웃 셸
+ * RootLayout — 6/22 스토어 연결 업데이트
+ * 헤더의 집중도·진행률 StatusPill이 실시간으로 스토어 값을 구독함.
  */
 export default function RootLayout() {
   const location = useLocation();
   const isReading = location.pathname === '/reading';
+
+  // 헤더 StatusPill용 스토어 구독
+  const focusScore = useFocusStore((s) => s.focusScore);
+  const progress = useReadingStore((s) => s.progress);
 
   return (
     <div
@@ -67,11 +74,11 @@ export default function RootLayout() {
             </NavLink>
           </nav>
 
-          {/* 헤더 우측 상태 표시 (읽기 중일 때만) */}
+          {/* 헤더 우측 실시간 상태 표시 (읽기 중일 때만) */}
           {isReading && (
             <div className="hidden md:flex items-center gap-3">
-              <StatusPill label="집중도" value="85%" color="var(--color-primary)" />
-              <StatusPill label="진행률" value="42%" color="var(--color-engagement)" />
+              <StatusPill label="집중도" value={`${focusScore}%`} color="var(--color-engagement)" />
+              <StatusPill label="진행률" value={`${progress}%`} color="var(--color-primary)" />
             </div>
           )}
         </div>
@@ -97,7 +104,12 @@ function StatusPill({ label, value, color }: { label: string; value: string; col
       }}
     >
       <span style={{ color: 'var(--color-text-secondary)' }}>{label}</span>
-      <span className="font-semibold" style={{ color }}>{value}</span>
+      <span
+        className="font-semibold tabular-nums"
+        style={{ color, transition: 'color 0.3s' }}
+      >
+        {value}
+      </span>
     </div>
   );
 }

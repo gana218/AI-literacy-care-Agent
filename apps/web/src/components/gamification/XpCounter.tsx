@@ -1,14 +1,31 @@
+/**
+ * XpCounter — 6/22 실구현
+ * 경험치 수치를 스타일링하여 표시. 미래: 숫자가 올라가는 애니메이션 (Framer Motion, 7/1).
+ */
 import React from 'react';
 
-/**
- * XpCounter Component Stub (TODO: 6/2x)
- * 획득한 경험치(XP)를 예쁘게 카운팅해서 보여주는 UI 스텁입니다.
- */
-export const XpCounter: React.FC<{ xp?: number }> = ({ xp = 150 }) => {
+interface XpCounterProps {
+  xp: number;
+}
+
+export const XpCounter: React.FC<XpCounterProps> = ({ xp }) => {
   return (
-    <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-surface-alt border border-border rounded-full text-xs font-weight-bold">
-      <span className="text-xp">✨</span>
-      <span className="text-text">{xp} <span className="text-text-muted font-weight-medium">XP</span></span>
+    <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+      <span style={{ fontSize: '16px' }}>✨</span>
+      <span
+        style={{
+          fontSize: 'var(--text-base)',
+          fontWeight: 'var(--weight-bold)' as unknown as number,
+          color: 'var(--color-xp)',
+          fontFamily: 'var(--font-sans)',
+          fontVariantNumeric: 'tabular-nums',
+        }}
+      >
+        {xp.toLocaleString()}
+      </span>
+      <span style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)', fontFamily: 'var(--font-sans)' }}>
+        XP
+      </span>
     </div>
   );
 };
