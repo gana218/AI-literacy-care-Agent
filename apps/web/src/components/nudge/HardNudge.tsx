@@ -15,7 +15,7 @@ interface HardNudgeProps {
 }
 
 export const HardNudge: React.FC<HardNudgeProps> = ({ message }) => {
-  const { isNudgeVisible, nudgeLevel, dismissNudge, showQuiz, isQuizVisible } = useFocusStore();
+  const { isNudgeVisible, nudgeLevel, dismissNudge, showQuiz, isQuizVisible, nudgeMessage } = useFocusStore();
   const isVisible = isNudgeVisible && nudgeLevel === 'hard';
 
   // HardNudge 등장 시 자동으로 QuizCard도 열기
@@ -29,6 +29,7 @@ export const HardNudge: React.FC<HardNudgeProps> = ({ message }) => {
 
   const displayMessage =
     message ??
+    nudgeMessage ??
     '집중도가 심각하게 저하되었습니다. 퀴즈를 완료해야 읽기를 계속할 수 있습니다.';
 
   return (

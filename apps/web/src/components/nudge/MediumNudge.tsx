@@ -17,7 +17,7 @@ interface MediumNudgeProps {
 }
 
 export const MediumNudge: React.FC<MediumNudgeProps> = ({ message, onEscalate }) => {
-  const { isNudgeVisible, nudgeLevel, dismissNudge, showQuiz, setNudgeLevel } = useFocusStore();
+  const { isNudgeVisible, nudgeLevel, dismissNudge, showQuiz, setNudgeLevel, nudgeMessage } = useFocusStore();
   const isVisible = isNudgeVisible && nudgeLevel === 'medium';
 
   const handleEscalate = () => {
@@ -29,6 +29,7 @@ export const MediumNudge: React.FC<MediumNudgeProps> = ({ message, onEscalate })
 
   const displayMessage =
     message ??
+    nudgeMessage ??
     '집중도가 저하되고 있습니다. 지금까지 읽은 내용의 핵심을 한 번 짚어볼까요?';
 
   return (

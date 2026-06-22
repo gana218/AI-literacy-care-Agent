@@ -1,50 +1,83 @@
 /**
- * ④→③ WebSocket 클라이언트 stub (6/21 타입 확정)
- * ③번 백엔드는 이 파일의 이벤트 스키마를 참고해 수신/송신 로직을 구현한다.
+ * ④→③ WebSocket 클라이언트 (7/6 실구현 완료)
+ * 브라우저 Native WebSocket API를 사용해 백엔드 서버와 연결하고,
+ * 사용자의 실시간 읽기 행동 이벤트를 송신하며 서버의 개입 명령을 수신합니다.
  */
 import type { ReadingBehaviorEvent, InterventionCommand } from './api';
 
 export type MessageHandler = (command: InterventionCommand) => void;
 
-interface WsClient {
+export interface WsClient {
   send: (event: ReadingBehaviorEvent) => void;
   onMessage: (handler: MessageHandler) => void;
   close: () => void;
   isConnected: () => boolean;
 }
 
+// 싱글톤 형태의 활성 클라이언트 참조 관리 (순환 참조 방지 및 전역 접근 용이성 확보)
+let activeClient: WsClient | null = null;
+
+export const getActiveWsClient = (): WsClient | null => activeClient;
+export const setActiveWsClient = (client: WsClient | null) => {
+  activeClient = client;
+};
+
 /**
- * WebSocket 클라이언트 생성
- * TODO 7/6: 실제 WebSocket 연결 구현
+ * WebSocket 클라이언트 생성 및 실제 소켓 연결 수립
  */
 export const createWsClient = (endpoint: string): WsClient => {
   console.log(`[WS] Connecting to: ${endpoint}`);
-  // TODO 7/6: 실제 WebSocket 구현 시 아래 주석 해제
-  // const ws = new WebSocket(endpoint);
-  // let _connected = false;
-  // ws.onopen = () => { _connected = true; };
-  // ws.onmessage = (e) => { messageHandler?.(JSON.parse(e.data)); };
-  // ws.onclose = () => { _connected = false; };
-
+  
+  const ws = new WebSocket(endpoint);
   let messageHandler: MessageHandler | null = null;
 
-  return {
+  ws.onopen = () => {
+    console.log('[WS] Connected successfully');
+  };
+
+  ws.onmessage = (e) => {
+    try {
+      const command = JSON.parse(e.data);
+      console.log('[WS] ← Received Command:', command);
+      messageHandler?.(command);
+    } catch (err) {
+      console.error('[WS] Failed to parse incoming server message:', err);
+    }
+  };
+
+  ws.onclose = (e) => {
+    console.log('[WS] Connection closed:', e.reason);
+  };
+
+  ws.onerror = (err) => {
+    console.error('[WS] WebSocket error detected:', err);
+  };
+
+  const client: WsClient = {
     send: (event: ReadingBehaviorEvent) => {
-      console.log('[WS] → Server:', event);
-      // TODO 7/6: ws.send(JSON.stringify(event));
+      console.log('[WS] → Send Behavior Event:', event);
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify(event));
+      } else {
+        console.warn('[WS] Cannot send event. WebSocket state is not OPEN');
+      }
     },
     onMessage: (handler: MessageHandler) => {
       messageHandler = handler;
-      // TODO 7/6: ws.onmessage = (e) => messageHandler?.(JSON.parse(e.data));
-      void messageHandler; // 실제 ws 연결 전까지 참조 유지
-      console.log('[WS] Message handler registered');
+      console.log('[WS] Registered message handler');
     },
     close: () => {
       messageHandler = null;
-      console.log('[WS] Connection closed');
+      ws.close();
+      console.log('[WS] Closed manually');
     },
-    isConnected: () => false,  // TODO 7/6: ws.readyState === WebSocket.OPEN
+    isConnected: () => ws.readyState === WebSocket.OPEN,
   };
+
+  // 활성 클라이언트로 지정
+  setActiveWsClient(client);
+
+  return client;
 };
 
 /** 읽기 행동 이벤트 전송 헬퍼 */

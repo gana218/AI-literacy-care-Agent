@@ -17,6 +17,13 @@ import { sampleArticle } from '../../mock/sampleArticle';
 import { useReadingStore } from '../../stores/readingStore';
 import HighlightText from './HighlightText';
 import TermTooltip from './TermTooltip';
+import {
+  getActiveWsClient,
+  sendScrollEvent,
+  sendDwellEvent,
+  sendBlurEvent,
+  sendFocusEvent,
+} from '../../lib/ws';
 
 // ── 핵심 용어 사전 (6/30: ②번 RAG로 교체) ──────────────────────────
 const TERM_DICT: Record<string, string> = {
@@ -96,7 +103,7 @@ Paragraph.displayName = 'Paragraph';
 
 // ── ReadingPane ───────────────────────────────────────────────────────
 export const ReadingPane: React.FC = () => {
-  const { setProgress, setScrollVelocity, incrementGazeOut, setDwellTime, highlightedParagraphs } =
+  const { setProgress, setScrollVelocity, incrementGazeOut, setDwellTime, highlightedParagraphs, sessionId } =
     useReadingStore();
 
   const containerRef = useRef<HTMLDivElement>(null);
@@ -118,18 +125,37 @@ export const ReadingPane: React.FC = () => {
     const now = Date.now();
     const deltaY = Math.abs(scrollTop - lastScrollY.current);
     const deltaT = (now - lastScrollTime.current) / 1000; // seconds
-    if (deltaT > 0) setScrollVelocity(Math.round(deltaY / deltaT));
+    const velocity = deltaT > 0 ? Math.round(deltaY / deltaT) : 0;
+    setScrollVelocity(velocity);
+
+    // ── 7/6 WebSocket 전송 ──
+    const wsClient = getActiveWsClient();
+    if (wsClient && sessionId) {
+      sendScrollEvent(wsClient, sessionId, velocity, progress);
+    }
 
     lastScrollY.current = scrollTop;
     lastScrollTime.current = now;
-  }, [setProgress, setScrollVelocity]);
+  }, [setProgress, setScrollVelocity, sessionId]);
 
   // ── 탭 포커스 이탈 감지 ──
   useEffect(() => {
-    const onBlur = () => incrementGazeOut();
+    const onBlur = () => {
+      incrementGazeOut();
+      const wsClient = getActiveWsClient();
+      if (wsClient && sessionId) sendBlurEvent(wsClient, sessionId);
+    };
+    const onFocus = () => {
+      const wsClient = getActiveWsClient();
+      if (wsClient && sessionId) sendFocusEvent(wsClient, sessionId);
+    };
     window.addEventListener('blur', onBlur);
-    return () => window.removeEventListener('blur', onBlur);
-  }, [incrementGazeOut]);
+    window.addEventListener('focus', onFocus);
+    return () => {
+      window.removeEventListener('blur', onBlur);
+      window.removeEventListener('focus', onFocus);
+    };
+  }, [incrementGazeOut, sessionId]);
 
   // ── 단락 체류 시간 누적 ──
   const handleParagraphVisible = useCallback(
@@ -137,11 +163,18 @@ export const ReadingPane: React.FC = () => {
       if (index !== currentParagraph.current) {
         const elapsed = Date.now() - dwellStart.current;
         setDwellTime(elapsed);
+
+        // ── 7/6 WebSocket 전송 ──
+        const wsClient = getActiveWsClient();
+        if (wsClient && sessionId) {
+          sendDwellEvent(wsClient, sessionId, String(currentParagraph.current), elapsed);
+        }
+
         dwellStart.current = Date.now();
         currentParagraph.current = index;
       }
     },
-    [setDwellTime]
+    [setDwellTime, sessionId]
   );
 
   return (

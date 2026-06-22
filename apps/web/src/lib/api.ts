@@ -2,6 +2,7 @@
  * ③번 백엔드와의 API 계약 타입 및 fetch stub (6/21 확정)
  * ③번 담당자는 이 파일의 인터페이스를 참고해 FastAPI 응답 형식을 맞춰준다.
  */
+import { sampleArticle } from '../mock/sampleArticle';
 
 // ──────────────────────────────────────────────
 // 공통 타입
@@ -132,30 +133,51 @@ const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000';
 export const api = {
   /** 세션 시작 — 기사 로드 및 WebSocket 엔드포인트 수신 */
   startSession: async (req: StartSessionRequest): Promise<StartSessionResponse> => {
-    // TODO 7/6: 실제 fetch 구현
-    console.log('[API] startSession', req);
+    console.log('[API] startSession Request:', req);
+    try {
+      const res = await fetch(`${BASE_URL}/api/session/start`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(req),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        return data;
+      }
+    } catch (err) {
+      console.error('[API] Failed to startSession from server, falling back to mock:', err);
+    }
+
+    // Fallback Mock 데이터 반환
     return {
-      sessionId: 'mock-session-001',
+      sessionId: `session-${Math.random().toString(36).substr(2, 9)}`,
       article: {
         id: req.articleId,
-        title: '(mock) 기사 제목',
-        category: '테크/교육',
-        author: '더미 저자',
-        publishedAt: '2026-06-21',
-        content: ['(mock) 본문 단락입니다.'],
+        title: sampleArticle.title,
+        category: sampleArticle.category,
+        author: sampleArticle.author,
+        publishedAt: sampleArticle.publishedAt,
+        content: sampleArticle.content,
         difficulty: 0.6,
       },
-      wsEndpoint: `ws://localhost:8000/ws/session/mock-session-001`,
+      wsEndpoint: `${BASE_URL.replace(/^http/, 'ws')}/ws/session/mock-session-${Date.now()}`,
     };
   },
 
   /** 세션 결과 조회 — Literacy Score + Recharts 데이터 */
   getSessionResult: async (sessionId: string): Promise<SessionResultResponse> => {
-    // TODO 7/6: 실제 fetch 구현
-    console.log('[API] getSessionResult', sessionId);
-    const res = await fetch(`${BASE_URL}/api/session/${sessionId}/result`).catch(() => null);
-    if (res?.ok) return res.json();
-    // fallback: mock 반환
+    console.log('[API] getSessionResult Request:', sessionId);
+    try {
+      const res = await fetch(`${BASE_URL}/api/session/${sessionId}/result`);
+      if (res.ok) {
+        const data = await res.json();
+        return data;
+      }
+    } catch (err) {
+      console.error('[API] Failed to getSessionResult from server, falling back to mock:', err);
+    }
+
+    // Fallback Mock 데이터 반환
     return {
       sessionId,
       literacyScore: 87,
@@ -182,8 +204,21 @@ export const api = {
 
   /** 퀴즈 정답 제출 */
   submitQuizAnswer: async (sessionId: string, quizId: string, selectedOption: string) => {
-    // TODO 7/6: 실제 fetch 구현
-    console.log('[API] submitQuizAnswer', { sessionId, quizId, selectedOption });
-    return { correct: true, explanation: '정답입니다! (mock)' };
+    console.log('[API] submitQuizAnswer Request:', { sessionId, quizId, selectedOption });
+    try {
+      const res = await fetch(`${BASE_URL}/api/session/${sessionId}/quiz/submit`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ quizId, selectedOption }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        return data;
+      }
+    } catch (err) {
+      console.error('[API] Failed to submitQuizAnswer to server, falling back to mock:', err);
+    }
+
+    return { correct: true, explanation: '정답입니다! (mock 서버 오프라인)' };
   },
 };

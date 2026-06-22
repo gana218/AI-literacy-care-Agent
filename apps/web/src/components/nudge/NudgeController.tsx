@@ -21,6 +21,7 @@ import SoftNudge from '../nudge/SoftNudge';
 import MediumNudge from '../nudge/MediumNudge';
 import HardNudge from '../nudge/HardNudge';
 import QuizCard from '../quiz/QuizCard';
+import { getActiveWsClient } from '../../lib/ws';
 
 /** focusScore → nudgeLevel 변환 */
 function scoreToNudgeLevel(score: number): 'none' | 'soft' | 'medium' | 'hard' {
@@ -35,6 +36,13 @@ export const NudgeController: React.FC = () => {
   const prevLevel = useRef<string>('none');
 
   useEffect(() => {
+    // 7/6 추가: WebSocket이 활성화 및 연결된 상태라면 서버의 개입 명령이 상태를 제어하므로
+    // 로컬에서의 자동 집중도 기반 넛지 판단은 바이패스(우회)합니다.
+    const wsClient = getActiveWsClient();
+    if (wsClient && wsClient.isConnected()) {
+      return;
+    }
+
     const newLevel = scoreToNudgeLevel(focusScore);
 
     // 레벨이 상승할 때만 Nudge 표시 (회복 중에는 재트리거 안 함)

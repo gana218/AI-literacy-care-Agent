@@ -7,6 +7,11 @@ import SessionSummaryCard from '../components/dashboard/SessionSummaryCard';
 import { Card } from '../components/common/Card';
 import { useReadingStore } from '../stores/readingStore';
 import { useScoreEngine } from '../lib/useScoreEngine';
+import { useFocusStore } from '../stores/focusStore';
+import { useScoreStore } from '../stores/scoreStore';
+import { api } from '../lib/api';
+import { createWsClient, setActiveWsClient } from '../lib/ws';
+import type { WsClient } from '../lib/ws';
 
 /**
  * ReadingPage — /reading
@@ -16,6 +21,14 @@ import { useScoreEngine } from '../lib/useScoreEngine';
  */
 export default function ReadingPage() {
   const progress = useReadingStore((s) => s.progress);
+  const startSessionStore = useReadingStore((s) => s.startSession);
+  const setProgress = useReadingStore((s) => s.setProgress);
+  const setHighlights = useReadingStore((s) => s.setHighlights);
+
+  const showNudge = useFocusStore((s) => s.showNudge);
+  const setActiveQuiz = useFocusStore((s) => s.setActiveQuiz);
+  const showQuiz = useFocusStore((s) => s.showQuiz);
+  const setFocusScore = useFocusStore((s) => s.setFocusScore);
 
   // 6/26: Score Engine 마운트 (ReadingPage 수명 동안 실행)
   useScoreEngine();
@@ -23,6 +36,113 @@ export default function ReadingPage() {
   useEffect(() => {
     document.title = 'AI 리터러시 케어 — 읽기';
   }, []);
+
+  // 7/6: 실시간 백엔드 연결 & WebSocket 개입 커맨드 처리
+  useEffect(() => {
+    let ws: WsClient | null = null;
+    let active = true;
+
+    async function initSession() {
+      try {
+        const sessionData = await api.startSession({
+          articleId: 'default-article',
+          userId: 'user-001',
+        });
+
+        if (!active) return;
+
+        // Zustand store 세션 연동 시작
+        startSessionStore(sessionData.article.id, sessionData.sessionId);
+
+        // WebSocket 클라이언트 생성 및 활성화
+        ws = createWsClient(sessionData.wsEndpoint);
+
+        ws.onMessage((command) => {
+          console.log('[ReadingPage] ← Received Intervention Command:', command);
+          switch (command.type) {
+            case 'nudge':
+              if (command.payload.nudgeLevel) {
+                showNudge(command.payload.nudgeLevel, command.payload.nudgeMessage);
+              }
+              break;
+            case 'quiz':
+              if (command.payload.quiz) {
+                setActiveQuiz(command.payload.quiz);
+                showQuiz();
+              }
+              break;
+            case 'highlight':
+              if (command.payload.highlights) {
+                const indices = command.payload.highlights.map((h: any) => h.paragraphIndex);
+                setHighlights(indices);
+              }
+              break;
+            case 'score_update':
+              if (command.payload.focusScore !== undefined) {
+                setFocusScore(command.payload.focusScore);
+              }
+              if (command.payload.progress !== undefined) {
+                setProgress(command.payload.progress);
+              }
+              break;
+            case 'session_end':
+              // 최종 리터러시 결과 조회 및 scoreStore 동기화
+              api.getSessionResult(sessionData.sessionId)
+                .then((scoreResult) => {
+                  if (!active) return;
+                  useScoreStore.setState({
+                    literacyScore: scoreResult.literacyScore,
+                    comprehensionScore: scoreResult.comprehensionScore,
+                    engagementScore: scoreResult.engagementScore,
+                    xp: scoreResult.totalXp,
+                    level: scoreResult.level,
+                    scoreSeries: scoreResult.scoreSeries.map((s) => ({
+                      label: s.label,
+                      before: s.before,
+                      after: s.after,
+                    })),
+                    badges: scoreResult.badges.map((b) => ({
+                      id: b.id,
+                      name: b.name,
+                      emoji: b.emoji,
+                      description: b.description,
+                      acquiredAt: b.acquiredAt,
+                    })),
+                  });
+                })
+                .catch((err) => {
+                  console.error('[ReadingPage] Failed to fetch session result:', err);
+                });
+              // 완독 완료 설정
+              setProgress(100);
+              break;
+            default:
+              console.warn('[ReadingPage] Unknown command type:', command.type);
+          }
+        });
+      } catch (err) {
+        console.error('[ReadingPage] Failed to initialize session APIs:', err);
+      }
+    }
+
+    initSession();
+
+    return () => {
+      active = false;
+      if (ws) {
+        ws.close();
+      }
+      setActiveWsClient(null);
+    };
+  }, [
+    startSessionStore,
+    showNudge,
+    setActiveQuiz,
+    showQuiz,
+    setHighlights,
+    setFocusScore,
+    setProgress,
+  ]);
 
   const isFinished = progress >= 100;
 

@@ -11,10 +11,12 @@
  *
  * TODO 7/6: api.submitQuizAnswer() 실제 서버 검증 연동
  */
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useFocusStore } from '../../stores/focusStore';
 import { useScoreStore } from '../../stores/scoreStore';
+import { useReadingStore } from '../../stores/readingStore';
+import { api } from '../../lib/api';
 
 // ── 퀴즈 데이터 (TODO 7/6: ①번 quizActive + currentQuiz store에서 수신) ──
 interface QuizQuestion {
@@ -60,12 +62,25 @@ type QuizPhase = 'answering' | 'correct' | 'incorrect';
 
 // ── 메인 컴포넌트 ────────────────────────────────────────────────────
 export const QuizCard: React.FC = () => {
-  const { isQuizVisible, dismissQuiz, setFocusScore, focusScore, dismissNudge } = useFocusStore();
+  const { isQuizVisible, dismissQuiz, setFocusScore, focusScore, dismissNudge, activeQuiz, setActiveQuiz } = useFocusStore();
   const { addXp, recordQuizResult } = useScoreStore();
+  const { sessionId } = useReadingStore();
 
-  const [currentQuiz] = useState<QuizQuestion>(
-    () => MOCK_QUIZZES[Math.floor(Math.random() * MOCK_QUIZZES.length)]
-  );
+  const currentQuiz = useMemo<QuizQuestion>(() => {
+    if (activeQuiz) {
+      const correctIdx = activeQuiz.options.indexOf(activeQuiz.correctOption);
+      return {
+        id: activeQuiz.quizId,
+        question: activeQuiz.question,
+        options: activeQuiz.options,
+        correctIndex: correctIdx >= 0 ? correctIdx : 0,
+        explanation: activeQuiz.explanation || '정답입니다!',
+        xpReward: 30,
+      };
+    }
+    return MOCK_QUIZZES[0];
+  }, [activeQuiz]);
+
   const [phase, setPhase] = useState<QuizPhase>('answering');
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
   const [timeLeft, setTimeLeft] = useState(30); // 30초 타이머
@@ -83,7 +98,7 @@ export const QuizCard: React.FC = () => {
   }, [isQuizVisible, phase, timeLeft]);
 
   const handleSelect = useCallback(
-    (index: number) => {
+    async (index: number) => {
       if (phase !== 'answering') return;
       setSelectedIndex(index);
       const isCorrect = index === currentQuiz.correctIndex;
@@ -101,17 +116,25 @@ export const QuizCard: React.FC = () => {
         xpAwarded: isCorrect ? currentQuiz.xpReward : 0,
         timestamp: Date.now(),
       });
+
+      // API submit
+      try {
+        await api.submitQuizAnswer(sessionId || '', currentQuiz.id, currentQuiz.options[index]);
+      } catch (err) {
+        console.error('[API] Failed to submit quiz answer:', err);
+      }
     },
-    [phase, currentQuiz, addXp, setFocusScore, focusScore, recordQuizResult]
+    [phase, currentQuiz, addXp, setFocusScore, focusScore, recordQuizResult, sessionId]
   );
 
   const handleClose = useCallback(() => {
     dismissQuiz();
     dismissNudge();
+    setActiveQuiz(null);
     setPhase('answering');
     setSelectedIndex(null);
     setTimeLeft(30);
-  }, [dismissQuiz, dismissNudge]);
+  }, [dismissQuiz, dismissNudge, setActiveQuiz]);
 
   const timerPercent = (timeLeft / 30) * 100;
   const timerColor =

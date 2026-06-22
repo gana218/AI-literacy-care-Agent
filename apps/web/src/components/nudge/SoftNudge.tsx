@@ -20,7 +20,7 @@ export const SoftNudge: React.FC<SoftNudgeProps> = ({
   message,
   autoDismissMs = 8000,
 }) => {
-  const { isNudgeVisible, nudgeLevel, dismissNudge } = useFocusStore();
+  const { isNudgeVisible, nudgeLevel, dismissNudge, nudgeMessage } = useFocusStore();
   const isVisible = isNudgeVisible && nudgeLevel === 'soft';
 
   // 자동 소멸
@@ -31,7 +31,9 @@ export const SoftNudge: React.FC<SoftNudgeProps> = ({
   }, [isVisible, autoDismissMs, dismissNudge]);
 
   const displayMessage =
-    message ?? '스크롤 속도가 평균보다 빠릅니다. 이 단락의 핵심 내용을 놓치지 않도록 잠깐 되짚어볼까요?';
+    message ??
+    nudgeMessage ??
+    '스크롤 속도가 평균보다 빠릅니다. 이 단락의 핵심 내용을 놓치지 않도록 잠깐 되짚어볼까요?';
 
   return (
     <AnimatePresence>
