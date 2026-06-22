@@ -121,6 +121,14 @@ export const FloatingControlPanel: React.FC = () => {
           <BadgeShelf compact />
         </section>
 
+        {/* ── 데모 시뮬레이터 ── */}
+        <section style={{ borderTop: '1px dashed var(--color-border)', paddingTop: 'var(--space-4)' }}>
+          <p style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)', marginBottom: 'var(--space-2)', fontFamily: 'var(--font-sans)' }}>
+            🎮 집중도 시뮬 (데모용)
+          </p>
+          <FocusSimulator />
+        </section>
+
       </div>
     </div>
   );
@@ -151,4 +159,49 @@ function GaugeBar({ value, color }: { value: number; color: string }) {
   );
 }
 
+
 export default FloatingControlPanel;
+
+/**
+ * FocusSimulator — 데모·심사 시연용 집중도 직접 조작 버튼
+ * 실제 서비스에서는 ③번 WebSocket이 focusScore를 업데이트하지만,
+ * 데모 환경에서는 이 버튼으로 폐루프 개입 흐름을 직접 시연한다.
+ */
+function FocusSimulator() {
+  const { setFocusScore } = useFocusStore();
+
+  const steps = [
+    { label: '집중 (85)', score: 85, color: 'var(--color-engagement)' },
+    { label: 'Soft (65)', score: 65, color: 'var(--color-nudge-soft)' },
+    { label: 'Medium (45)', score: 45, color: 'var(--color-nudge-medium)' },
+    { label: 'Hard (25)', score: 25, color: 'var(--color-nudge-hard)' },
+  ];
+
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
+      {steps.map(({ label, score, color }) => (
+        <button
+          key={label}
+          onClick={() => setFocusScore(score)}
+          style={{
+            padding: '6px 4px',
+            fontSize: '10px',
+            fontFamily: 'var(--font-sans)',
+            fontWeight: 'var(--weight-semibold)' as unknown as number,
+            borderRadius: 'var(--radius-md)',
+            border: `1px solid ${color}`,
+            backgroundColor: 'var(--color-surface)',
+            color,
+            cursor: 'pointer',
+            transition: 'background-color 0.2s',
+            textAlign: 'center',
+          }}
+          onMouseEnter={(e) => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = 'var(--color-surface-alt)')}
+          onMouseLeave={(e) => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = 'var(--color-surface)')}
+        >
+          {label}
+        </button>
+      ))}
+    </div>
+  );
+}

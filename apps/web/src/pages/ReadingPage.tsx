@@ -2,15 +2,14 @@ import { useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import ReadingPane from '../components/reading/ReadingPane';
 import FloatingControlPanel from '../components/panel/FloatingControlPanel';
-import SoftNudge from '../components/nudge/SoftNudge';
+import NudgeController from '../components/nudge/NudgeController';
 import { Card } from '../components/common/Card';
 import { useReadingStore } from '../stores/readingStore';
 
 /**
  * ReadingPage — /reading
- * 6/22: 스토어 실시간 구독 — progress가 readingStore에서 읽힘
- * 6/23: ReadingPane이 실제 스크롤 이벤트로 progress를 갱신하고, ReadingPage의 진행률 바에 반영됨
- * TODO 6/24: focusStore.isNudgeVisible 기반 조건부 Nudge 렌더
+ * 6/24: NudgeController 연결 — 폐루프 실시간 개입 시스템 완성
+ * - NudgeController가 focusScore를 구독해 Soft/Medium/HardNudge + QuizCard를 조건부 렌더
  */
 export default function ReadingPage() {
   const progress = useReadingStore((s) => s.progress);
@@ -21,19 +20,19 @@ export default function ReadingPage() {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6">
+      {/* ── 폐루프 개입 시스템 (HardNudge는 sticky top 배너이므로 최상단) ── */}
+      <NudgeController />
+
       <div className="flex flex-col lg:flex-row gap-6 items-start">
 
         {/* ── 좌측: 본문 읽기 영역 ── */}
         <div className="flex-1 min-w-0 space-y-4">
 
-          {/* 읽기 진행률 바 — readingStore 실시간 구독 */}
+          {/* 읽기 진행률 바 */}
           <ReadingProgressBar progress={progress} />
 
-          {/* 본문 패널 — 스크롤 이벤트로 progress 갱신 */}
+          {/* 본문 패널 */}
           <ReadingPane />
-
-          {/* Soft Nudge (TODO 6/24: focusStore 조건부 렌더) */}
-          <SoftNudge message="이 단락에는 핵심 개념이 집중되어 있어요. 조금 더 천천히 읽어볼까요?" />
 
           {/* 안내 카드 */}
           <Card variant="flat" className="p-4">
@@ -46,11 +45,10 @@ export default function ReadingPage() {
               }}
             >
               <span className="font-semibold" style={{ color: 'var(--color-text-secondary)' }}>
-                [6/22~23 M0 완성]
+                [6/24~25 폐루프 완성]
               </span>{' '}
-              스크롤 진행률·집중도·XP가 실시간 업데이트됩니다.
-              밑줄 용어에 마우스를 올려 툴팁을 확인하고,
-              노란 하이라이트 단락은 케어 에이전트가 집중 권장 구간으로 마킹한 영역입니다.
+              우측 패널 하단 [집중도 시뮬] 버튼으로 집중도를 낮추면 넛지 → 퀴즈 개입이 자동 실행됩니다.
+              스크롤하면 진행률이 실시간으로 갱신되고, 밑줄 용어에 마우스를 올려 툴팁을 확인하세요.
             </p>
           </Card>
         </div>
@@ -65,9 +63,8 @@ export default function ReadingPage() {
   );
 }
 
-/** 읽기 진행률 상단 바 — 스토어 값 직접 수신 */
+/** 읽기 진행률 상단 바 */
 function ReadingProgressBar({ progress }: { progress: number }) {
-  // 예상 남은 시간 계산 (mock: 총 5분 기준)
   const remainingMin = Math.max(0, Math.round((5 * (100 - progress)) / 100));
 
   return (
@@ -110,7 +107,11 @@ function ReadingProgressBar({ progress }: { progress: number }) {
         <Link
           to="/dashboard"
           className="shrink-0 text-xs px-2 py-1 rounded"
-          style={{ backgroundColor: 'var(--color-primary-tint)', color: 'var(--color-primary)', fontFamily: 'var(--font-sans)' }}
+          style={{
+            backgroundColor: 'var(--color-primary-tint)',
+            color: 'var(--color-primary)',
+            fontFamily: 'var(--font-sans)',
+          }}
         >
           📊 점수 보기
         </Link>
