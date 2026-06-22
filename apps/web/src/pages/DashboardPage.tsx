@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import GrowthDashboard from '../components/dashboard/GrowthDashboard';
+import DetailedGrowthReport from '../components/dashboard/DetailedGrowthReport';
 import LevelBar from '../components/gamification/LevelBar';
 import BadgeShelf from '../components/gamification/BadgeShelf';
 import XpCounter from '../components/gamification/XpCounter';
@@ -124,18 +125,8 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* ── 하단: 주간/월간 성장 리포트 (TODO 6/30) ── */}
-      <Card variant="flat" className="p-6">
-        <div className="text-center py-8">
-          <p className="text-2xl mb-2">📈</p>
-          <p className="text-sm font-semibold" style={{ color: 'var(--color-text-secondary)', fontFamily: 'var(--font-sans)' }}>
-            주간 / 월간 상세 성장 리포트
-          </p>
-          <p className="text-xs mt-1" style={{ color: 'var(--color-text-muted)', fontFamily: 'var(--font-sans)' }}>
-            TODO 6/30 — 성장 대시보드 핵심 구현 단계에서 연결됩니다
-          </p>
-        </div>
-      </Card>
+      {/* ── 하단: 주간/월간 성장 리포트 (6/30 구현 완료) ── */}
+      <DetailedGrowthReport />
 
     </div>
   );
