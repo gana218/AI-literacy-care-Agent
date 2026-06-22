@@ -1,16 +1,4 @@
-/**
- * FloatingControlPanel — 6/22 스토어 실시간 구독
- *
- * [구현된 기능]
- * - focusStore 구독 → 집중도 점수 게이지 실시간 반영
- * - readingStore 구독 → 진행률 실시간 반영
- * - scoreStore 구독 → XP·레벨 표시
- * - 집중도에 따라 게이지 색상 변화
- *
- * TODO 6/24: nudgeLevel 변화 → Nudge 컴포넌트 트리거
- * TODO 7/1: 퀴즈 정답 이후 XP 애니메이션 (Framer Motion)
- */
-import React from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useFocusStore } from '../../stores/focusStore';
 import { useReadingStore } from '../../stores/readingStore';
 import { useScoreStore } from '../../stores/scoreStore';
@@ -159,16 +147,110 @@ function GaugeBar({ value, color }: { value: number; color: string }) {
   );
 }
 
-
 export default FloatingControlPanel;
 
 /**
- * FocusSimulator — 데모·심사 시연용 집중도 직접 조작 버튼
- * 실제 서비스에서는 ③번 WebSocket이 focusScore를 업데이트하지만,
- * 데모 환경에서는 이 버튼으로 폐루프 개입 흐름을 직접 시연한다.
+ * FocusSimulator — 데모·심사 시연용 집중도 직접 조작 및 자동 E2E 시연기
  */
 function FocusSimulator() {
-  const { setFocusScore } = useFocusStore();
+  const { setFocusScore, dismissNudge, dismissQuiz, isQuizVisible } = useFocusStore();
+  const { setProgress } = useReadingStore();
+  const { restartDemoSession, quizResults, recordQuizResult, addXp } = useScoreStore();
+
+  const [demoStep, setDemoStep] = useState<number | null>(null);
+  const [demoStatus, setDemoStatus] = useState<string>('');
+  const timeoutIds = useRef<number[]>([]);
+
+  const clearAllTimeouts = () => {
+    timeoutIds.current.forEach((id) => window.clearTimeout(id));
+    timeoutIds.current = [];
+  };
+
+  useEffect(() => {
+    return () => clearAllTimeouts();
+  }, []);
+
+  // 퀴즈 결과가 추가되면 데모 Step 4에서 자동으로 Step 5로 이동
+  useEffect(() => {
+    if (demoStep === 4 && quizResults.length > 0) {
+      proceedToStep5();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [quizResults.length, demoStep]);
+
+  const resetAll = () => {
+    clearAllTimeouts();
+    setDemoStep(null);
+    setDemoStatus('');
+    setProgress(0);
+    setFocusScore(85);
+    dismissNudge();
+    dismissQuiz();
+    restartDemoSession();
+  };
+
+  const proceedToStep5 = () => {
+    clearAllTimeouts();
+    setDemoStep(5);
+    setDemoStatus('✨ 퀴즈 정답! 집중도 회복 및 90% 돌파');
+    setFocusScore(85);
+    dismissNudge();
+    dismissQuiz();
+    setProgress(90);
+
+    const t1 = window.setTimeout(() => {
+      setDemoStep(6);
+      setDemoStatus('🎉 완독 완료! 최종 결과 분석');
+      setProgress(100);
+      setDemoStep(null);
+    }, 3000);
+    timeoutIds.current.push(t1);
+  };
+
+  const handleAutoAnswer = () => {
+    recordQuizResult({
+      quizId: 'mock-q1',
+      correct: true,
+      xpAwarded: 30,
+      timestamp: Date.now(),
+    });
+    addXp(30);
+  };
+
+  const startAutoDemo = () => {
+    resetAll();
+    setDemoStep(0);
+    setDemoStatus('📖 E2E 데모 시작: 독서 중... (집중도 85)');
+
+    const t1 = window.setTimeout(() => {
+      setDemoStep(1);
+      setDemoStatus('📊 25% 지점 통과 (점수 기록)');
+      setProgress(25);
+    }, 2500);
+
+    const t2 = window.setTimeout(() => {
+      setDemoStep(2);
+      setDemoStatus('⚠️ 집중력 저하 감지 → Soft Nudge 작동');
+      setProgress(35);
+      setFocusScore(65);
+    }, 5500);
+
+    const t3 = window.setTimeout(() => {
+      setDemoStep(3);
+      setDemoStatus('⚠️ 추가 저하 → Medium Nudge (요약 힌트)');
+      setProgress(50);
+      setFocusScore(45);
+    }, 9000);
+
+    const t4 = window.setTimeout(() => {
+      setDemoStep(4);
+      setDemoStatus('🚨 주의 필요 → Hard Nudge + 퀴즈 팝업');
+      setProgress(75);
+      setFocusScore(25);
+    }, 13000);
+
+    timeoutIds.current.push(t1, t2, t3, t4);
+  };
 
   const steps = [
     { label: '집중 (85)', score: 85, color: 'var(--color-engagement)' },
@@ -178,30 +260,143 @@ function FocusSimulator() {
   ];
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
-      {steps.map(({ label, score, color }) => (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+      {/* 수동 집중도 조작 */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
+        {steps.map(({ label, score, color }) => (
+          <button
+            key={label}
+            onClick={() => {
+              clearAllTimeouts();
+              setDemoStep(null);
+              setDemoStatus('');
+              setFocusScore(score);
+            }}
+            style={{
+              padding: '6px 4px',
+              fontSize: '10px',
+              fontFamily: 'var(--font-sans)',
+              fontWeight: 600,
+              borderRadius: 'var(--radius-md)',
+              border: `1px solid ${color}`,
+              backgroundColor: 'var(--color-surface)',
+              color,
+              cursor: 'pointer',
+              transition: 'background-color 0.2s',
+              textAlign: 'center',
+            }}
+            onMouseEnter={(e) => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = 'var(--color-surface-alt)')}
+            onMouseLeave={(e) => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = 'var(--color-surface)')}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {/* 데모 제어 및 자동 데모 버튼 */}
+      <div style={{ display: 'flex', gap: '6px' }}>
+        {demoStep === null ? (
+          <button
+            onClick={startAutoDemo}
+            style={{
+              flex: 1,
+              padding: '8px',
+              fontSize: '11px',
+              fontFamily: 'var(--font-sans)',
+              fontWeight: 700,
+              borderRadius: 'var(--radius-md)',
+              backgroundColor: 'var(--color-primary)',
+              color: '#fff',
+              border: 'none',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '4px',
+            }}
+          >
+            🤖 자동 E2E 데모 시작
+          </button>
+        ) : (
+          <button
+            onClick={resetAll}
+            style={{
+              flex: 1,
+              padding: '8px',
+              fontSize: '11px',
+              fontFamily: 'var(--font-sans)',
+              fontWeight: 700,
+              borderRadius: 'var(--radius-md)',
+              backgroundColor: 'var(--color-nudge-hard)',
+              color: '#fff',
+              border: 'none',
+              cursor: 'pointer',
+            }}
+          >
+            ⏹️ 데모 중지 / 리셋
+          </button>
+        )}
+
         <button
-          key={label}
-          onClick={() => setFocusScore(score)}
+          onClick={resetAll}
           style={{
-            padding: '6px 4px',
-            fontSize: '10px',
+            padding: '8px 10px',
+            fontSize: '11px',
             fontFamily: 'var(--font-sans)',
-            fontWeight: 'var(--weight-semibold)' as unknown as number,
+            fontWeight: 600,
             borderRadius: 'var(--radius-md)',
-            border: `1px solid ${color}`,
+            border: '1px solid var(--color-border)',
             backgroundColor: 'var(--color-surface)',
-            color,
+            color: 'var(--color-text-secondary)',
             cursor: 'pointer',
-            transition: 'background-color 0.2s',
-            textAlign: 'center',
           }}
           onMouseEnter={(e) => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = 'var(--color-surface-alt)')}
           onMouseLeave={(e) => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = 'var(--color-surface)')}
         >
-          {label}
+          🔄 리셋
         </button>
-      ))}
+      </div>
+
+      {/* 데모 진행 정보 */}
+      {demoStep !== null && (
+        <div
+          style={{
+            padding: '8px',
+            borderRadius: 'var(--radius-md)',
+            backgroundColor: 'var(--color-primary-tint)',
+            border: '1px solid var(--color-border)',
+            fontFamily: 'var(--font-sans)',
+          }}
+        >
+          <p style={{ fontSize: '10px', fontWeight: 700, color: 'var(--color-primary)', marginBottom: '2px' }}>
+            [E2E 시연 시나리오 진행 중]
+          </p>
+          <p style={{ fontSize: '11px', color: 'var(--color-text)', lineHeight: '1.4' }}>
+            {demoStatus}
+          </p>
+          {demoStep === 4 && isQuizVisible && (
+            <div style={{ marginTop: '6px', display: 'flex', gap: '4px' }}>
+              <button
+                onClick={handleAutoAnswer}
+                style={{
+                  flex: 1,
+                  padding: '4px',
+                  fontSize: '9px',
+                  fontFamily: 'var(--font-sans)',
+                  fontWeight: 700,
+                  borderRadius: 'var(--radius-sm)',
+                  backgroundColor: 'var(--color-comprehension)',
+                  color: '#fff',
+                  border: 'none',
+                  cursor: 'pointer',
+                }}
+              >
+                💡 자동 정답 제출 후 계속
+              </button>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

@@ -44,6 +44,7 @@ interface ScoreState {
   /** 퀴즈 결과 기록 → comprehensionScore 재계산 */
   recordQuizResult: (result: QuizResult) => void;
 
+  restartDemoSession: () => void;
   reset: () => void;
 }
 
@@ -132,6 +133,26 @@ export const useScoreStore = create<ScoreState>((set, get) => ({
         comprehensionScore,
         literacyScore: Math.min(100, newLiteracy),
       };
+    }),
+
+  restartDemoSession: () =>
+    set({
+      literacyScore: 87,
+      comprehensionScore: 82,
+      engagementScore: 91,
+      xp: 265,
+      level: 2,
+      levelProgress: 65,
+      scoreSeries: mockScoreSeries.map((d) => ({
+        label: d.day,
+        before: d.beforeCare,
+        after: d.afterCare,
+      })),
+      badges: [
+        { id: 'first-read',   name: '첫 완독',    emoji: '📚', description: '첫 번째 글을 끝까지 읽었어요!', acquiredAt: new Date().toISOString() },
+        { id: 'focus-master', name: '초집중 리더', emoji: '⚡', description: '평균 집중도 90% 이상 달성!',      acquiredAt: new Date().toISOString() },
+      ],
+      quizResults: [],
     }),
 
   reset: () =>

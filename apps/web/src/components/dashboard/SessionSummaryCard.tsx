@@ -9,6 +9,8 @@ import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Link } from 'react-router-dom';
 import { useScoreStore } from '../../stores/scoreStore';
+import { useReadingStore } from '../../stores/readingStore';
+import { useFocusStore } from '../../stores/focusStore';
 import LiteracyScoreChart from '../dashboard/LiteracyScoreChart';
 
 interface SessionSummaryCardProps {
@@ -114,6 +116,32 @@ export const SessionSummaryCard: React.FC<SessionSummaryCardProps> = ({ isVisibl
 
             {/* 액션 버튼 */}
             <div style={{ display: 'flex', gap: 'var(--space-3)' }}>
+              <button
+                onClick={() => {
+                  useReadingStore.getState().setProgress(0);
+                  useFocusStore.getState().reset();
+                  useScoreStore.getState().restartDemoSession();
+                }}
+                style={{
+                  flex: 1,
+                  display: 'block',
+                  textAlign: 'center',
+                  padding: 'var(--space-3)',
+                  borderRadius: 'var(--radius-md)',
+                  border: '1px solid var(--color-primary)',
+                  backgroundColor: 'transparent',
+                  color: 'var(--color-primary)',
+                  fontSize: 'var(--text-sm)',
+                  fontWeight: 700,
+                  fontFamily: 'var(--font-sans)',
+                  cursor: 'pointer',
+                  transition: 'background-color 0.2s',
+                }}
+                onMouseEnter={(e) => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = 'var(--color-primary-tint)')}
+                onMouseLeave={(e) => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = 'transparent')}
+              >
+                🔄 처음부터 다시 읽기
+              </button>
               <Link
                 to="/dashboard"
                 style={{
