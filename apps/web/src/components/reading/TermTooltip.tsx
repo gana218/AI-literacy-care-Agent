@@ -26,7 +26,7 @@ export const TermTooltip: React.FC<TermTooltipProps> = ({
   const [aiDefinition, setAiDefinition] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const ref = useRef<HTMLSpanElement>(null);
-  const { sessionId, termDefinitions, setTermDefinition } = useReadingStore();
+  const { sessionId, termDefinitions, setTermDefinition, showGlossesInline } = useReadingStore();
 
   // 외부 클릭 시 닫기
   useEffect(() => {
@@ -40,9 +40,10 @@ export const TermTooltip: React.FC<TermTooltipProps> = ({
     return () => document.removeEventListener('mousedown', handler);
   }, [isOpen]);
 
-  // 7/5 추가: 어려운 단어/문장 클릭/호버 시 실시간 AI 주석 조회 (Content Reducer RAG 연동)
+  // 7/5 추가: 어려운 단어/문장 클릭/호버 또는 상시 표시 모드 활성화 시 실시간 AI 주석 조회 (Content Reducer RAG 연동)
   useEffect(() => {
-    if (!isOpen) return;
+    const shouldFetch = isOpen || showGlossesInline;
+    if (!shouldFetch) return;
 
     // 1. 이미 캐시에 존재한다면 네트워크 요청을 하지 않고 즉시 표시
     if (termDefinitions[term]) {
@@ -59,7 +60,7 @@ export const TermTooltip: React.FC<TermTooltipProps> = ({
       .then((res) => {
         if (active) {
           setAiDefinition(res.explanation);
-          setTermDefinition(term, res.explanation); // 다른 동일 툴팁 인스턴스들도 사용 가능하도록 캐시 저장
+          setTermDefinition(term, res.explanation); // 캐시 저장
         }
       })
       .catch((err) => {
@@ -74,7 +75,52 @@ export const TermTooltip: React.FC<TermTooltipProps> = ({
     return () => {
       active = false;
     };
-  }, [isOpen, term, sessionId, aiDefinition, isLoading, termDefinitions, setTermDefinition]);
+  }, [isOpen, showGlossesInline, term, sessionId, aiDefinition, isLoading, termDefinitions, setTermDefinition]);
+
+  // 7/7 추가: 상시 표시 모드(Inline Glosses)인 경우 툴팁 팝업을 건너뛰고 본문 내 인라인 배지로 렌더링
+  if (showGlossesInline) {
+    const displayDefinition = termDefinitions[term] || aiDefinition || definition;
+    return (
+      <span style={{ display: 'inline', alignItems: 'center', gap: '4px' }}>
+        <span
+          style={{
+            borderBottom: '1.5px dashed var(--color-primary)',
+            color: 'var(--color-primary)',
+            fontWeight: 600,
+          }}
+        >
+          {children ?? term}
+        </span>
+        <span
+          style={{
+            display: 'inline-block',
+            fontSize: '11px',
+            color: 'var(--color-text-secondary)',
+            backgroundColor: 'var(--color-primary-tint)',
+            padding: '2px 8px',
+            borderRadius: 'var(--radius-sm)',
+            marginLeft: '4px',
+            marginRight: '4px',
+            border: '1.5px solid rgba(130, 87, 230, 0.2)',
+            fontFamily: 'var(--font-sans)',
+            verticalAlign: 'middle',
+          }}
+        >
+          <span style={{ marginRight: '3px' }}>💡</span>
+          {isLoading ? (
+            <span
+              className="animate-pulse"
+              style={{ color: 'var(--color-text-muted)', fontStyle: 'italic' }}
+            >
+              생성 중...
+            </span>
+          ) : (
+            displayDefinition
+          )}
+        </span>
+      </span>
+    );
+  }
 
   const tooltipBase: React.CSSProperties = {
     position: 'absolute',

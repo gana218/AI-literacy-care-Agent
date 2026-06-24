@@ -103,8 +103,16 @@ Paragraph.displayName = 'Paragraph';
 
 // ── ReadingPane ───────────────────────────────────────────────────────
 export const ReadingPane: React.FC = () => {
-  const { setProgress, setScrollVelocity, incrementGazeOut, setDwellTime, highlightedParagraphs, sessionId } =
-    useReadingStore();
+  const {
+    setProgress,
+    setScrollVelocity,
+    incrementGazeOut,
+    setDwellTime,
+    highlightedParagraphs,
+    sessionId,
+    showGlossesInline,
+    toggleGlossesInline,
+  } = useReadingStore();
 
   const containerRef = useRef<HTMLDivElement>(null);
   const lastScrollY = useRef(0);
@@ -218,15 +226,57 @@ export const ReadingPane: React.FC = () => {
           >
             {sampleArticle.title}
           </h1>
-          <p
+          <div
             style={{
-              fontSize: 'var(--text-sm)',
-              color: 'var(--color-text-secondary)',
-              fontFamily: 'var(--font-sans)',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              flexWrap: 'wrap',
+              gap: 'var(--space-2)',
             }}
           >
-            저자: {sampleArticle.author} · 발행일: {sampleArticle.publishedAt}
-          </p>
+            <p
+              style={{
+                fontSize: 'var(--text-sm)',
+                color: 'var(--color-text-secondary)',
+                fontFamily: 'var(--font-sans)',
+                margin: 0,
+              }}
+            >
+              저자: {sampleArticle.author} · 발행일: {sampleArticle.publishedAt}
+            </p>
+            <button
+              onClick={toggleGlossesInline}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '6px 12px',
+                fontSize: '12px',
+                fontWeight: 600,
+                color: showGlossesInline ? 'white' : 'var(--color-primary)',
+                backgroundColor: showGlossesInline ? 'var(--color-primary)' : 'var(--color-primary-tint)',
+                border: '1px solid var(--color-primary)',
+                borderRadius: 'var(--radius-full)',
+                cursor: 'pointer',
+                transition: 'all 0.2s ease',
+                outline: 'none',
+                fontFamily: 'var(--font-sans)',
+              }}
+              onMouseEnter={(e) => {
+                if (!showGlossesInline) {
+                  e.currentTarget.style.backgroundColor = 'rgba(130, 87, 230, 0.2)';
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (!showGlossesInline) {
+                  e.currentTarget.style.backgroundColor = 'var(--color-primary-tint)';
+                }
+              }}
+            >
+              <span>{showGlossesInline ? '📖 RAG AI 주석 상시 표시 중' : '💡 RAG AI 주석 상시 표시'}</span>
+            </button>
+          </div>
         </div>
         <hr style={{ borderColor: 'var(--color-border)', margin: '0' }} />
       </div>

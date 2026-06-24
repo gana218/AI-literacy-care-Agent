@@ -21,6 +21,7 @@ interface ReadingState {
   // 하이라이트 범위 (6/23: ③서버 또는 규칙 기반)
   highlightedParagraphs: number[]; // 하이라이트할 단락 인덱스 배열
   termDefinitions: Record<string, string>; // AI RAG 용어 사전 캐시 (7/5 추가)
+  showGlossesInline: boolean; // RAG AI 주석 본문 상시 표시 모드 (7/5 추가)
 
   // actions
   startSession: (articleId: string, sessionId: string) => void;
@@ -31,6 +32,7 @@ interface ReadingState {
   setHighlights: (paragraphIndices: number[]) => void;
   setTermDefinition: (term: string, definition: string) => void;
   setTermDefinitions: (definitions: Record<string, string>) => void;
+  toggleGlossesInline: () => void;
   reset: () => void;
 }
 
@@ -45,6 +47,7 @@ export const useReadingStore = create<ReadingState>((set) => ({
   readingStartedAt: null,
   highlightedParagraphs: [0, 2], // 0번·2번 단락 하이라이트 (mock)
   termDefinitions: {},
+  showGlossesInline: false,
 
   startSession: (articleId, sessionId) =>
     set({ currentArticleId: articleId, sessionId, readingStartedAt: Date.now(), progress: 0 }),
@@ -56,6 +59,7 @@ export const useReadingStore = create<ReadingState>((set) => ({
   setTermDefinition: (term, definition) =>
     set((s) => ({ termDefinitions: { ...s.termDefinitions, [term]: definition } })),
   setTermDefinitions: (termDefinitions) => set({ termDefinitions }),
+  toggleGlossesInline: () => set((s) => ({ showGlossesInline: !s.showGlossesInline })),
   reset: () =>
     set({
       currentArticleId: null,
@@ -67,5 +71,6 @@ export const useReadingStore = create<ReadingState>((set) => ({
       readingStartedAt: null,
       highlightedParagraphs: [],
       termDefinitions: {},
+      showGlossesInline: false,
     }),
 }));
