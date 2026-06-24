@@ -221,4 +221,24 @@ export const api = {
 
     return { correct: true, explanation: '정답입니다! (mock 서버 오프라인)' };
   },
+
+  /** RAG 기반 어려운 용어/문장 AI 설명 조회 (2번 Content Reducer 연동) */
+  getTermDefinition: async (sessionId: string, term: string): Promise<{ explanation: string }> => {
+    console.log('[API] getTermDefinition Request:', { sessionId, term });
+    try {
+      const res = await fetch(`${BASE_URL}/api/session/${sessionId}/explain`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ term }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        return data;
+      }
+    } catch (err) {
+      console.error('[API] Failed to getTermDefinition from server, falling back to mock:', err);
+    }
+
+    return { explanation: `[AI 주석] '${term}'은(는) 문맥상 중요한 개념으로, 독자의 문해력 향상을 위해 선별된 단어입니다.` };
+  },
 };
