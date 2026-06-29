@@ -8,8 +8,10 @@ from ..core.db import get_db
 from ..core.redis import get_redis
 from ..models.models import ReadingSession, ReadingEvent, User
 from ..schemas.schemas import SessionStartRequest, SessionStartResponse, SessionFinishRequest, SessionFinishResponse
+from ..orchestrator.state import create_initial_state
+from ..orchestrator.graph import run_reading_session
 
-router = APIRouter(prefix="/api/sessions", tags=["Sessions"])
+router = APIRouter(prefix="/api/session", tags=["Sessions"])
 
 @router.post("/start", response_model=SessionStartResponse)
 async def start_session(req: SessionStartRequest, db: AsyncSession = Depends(get_db)):
@@ -56,6 +58,7 @@ async def finish_session(
         all_events_raw = await redis_client.lrange(redis_key, 0, -1)
         
         saved_count = 0
+        state_events = []
         for raw_event in all_events_raw:
             event_dict = json.loads(raw_event)
             new_event = ReadingEvent(
@@ -67,10 +70,27 @@ async def finish_session(
             db.add(new_event)
             saved_count += 1
             
-        # 3. 세션 정보 업데이트 (최종 점수 반영)
-        session.literacy_score = req.literacy_score
-        session.comprehension_score = req.comprehension_score
-        session.engagement_score = req.engagement_score
+            # Orchestrator 상태 주입을 위한 이벤트 리스트 구성
+            state_events.append({
+                "type": event_dict.get("type", "unknown"),
+                "timestamp_ms": event_dict.get("timestamp_ms", 0),
+                "metadata": event_dict
+            })
+            
+        # 3. 오케스트레이터(Role 1) 파이프라인 실행
+        initial_state = create_initial_state(
+            session_id=session_id,
+            user_id=session.user_id,
+            document_id=session.document_id,
+            raw_text="Sample Document Text"
+        )
+        initial_state["reading_events"] = state_events
+        final_state = run_reading_session(initial_state)
+
+        # 4. 세션 정보 업데이트 (Orchestrator 최종 점수 반영)
+        session.literacy_score = final_state.get("literacy_score", req.literacy_score)
+        session.comprehension_score = final_state.get("comprehension_score", req.comprehension_score)
+        session.engagement_score = final_state.get("engagement_score", req.engagement_score)
         
         await db.commit()
         

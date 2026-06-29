@@ -7,7 +7,7 @@ import redis.asyncio as redis
 
 router = APIRouter(prefix="/ws", tags=["WebSocket"])
 
-@router.websocket("/session/{session_id}")
+@router.websocket("/reading/{session_id}")
 async def websocket_endpoint(websocket: WebSocket, session_id: str):
     await websocket.accept()
     redis_client: redis.Redis = await get_redis()
