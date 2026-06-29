@@ -5,6 +5,7 @@ if sys.platform == 'win32':
     asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 
 from .api import ws, endpoints
@@ -22,6 +23,14 @@ async def lifespan(app: FastAPI):
     print("Shutting down AI Literacy Care Backend...")
 
 app = FastAPI(title="AI Literacy Care API", lifespan=lifespan)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # Register routers
 app.include_router(ws.router)
