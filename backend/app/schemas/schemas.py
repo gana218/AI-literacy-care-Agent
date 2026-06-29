@@ -2,12 +2,13 @@ from pydantic import BaseModel
 from typing import Optional
 
 class SessionStartRequest(BaseModel):
-    user_id: str
-    document_id: str
+    userId: str
+    articleId: str
 
 class SessionStartResponse(BaseModel):
-    session_id: str
-    message: str
+    sessionId: str
+    article: dict
+    wsEndpoint: str
 
 class SessionFinishRequest(BaseModel):
     literacy_score: Optional[float] = None

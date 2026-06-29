@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 import uuid
@@ -10,16 +10,16 @@ from ..models.models import ReadingSession, ReadingEvent, User
 from ..schemas.schemas import SessionStartRequest, SessionStartResponse, SessionFinishRequest, SessionFinishResponse
 from ..orchestrator.state import create_initial_state
 from ..orchestrator.graph import run_reading_session
+from .frontend_contract import to_session_result
 
 router = APIRouter(prefix="/api/session", tags=["Sessions"])
 
 @router.post("/start", response_model=SessionStartResponse)
-async def start_session(req: SessionStartRequest, db: AsyncSession = Depends(get_db)):
-    # 유저가 없으면 더미 유저 생성 (데모용)
-    user_result = await db.execute(select(User).filter(User.id == req.user_id))
+async def start_session(req: SessionStartRequest, request: Request, db: AsyncSession = Depends(get_db)):
+    user_result = await db.execute(select(User).filter(User.id == req.userId))
     user = user_result.scalars().first()
     if not user:
-        new_user = User(id=req.user_id)
+        new_user = User(id=req.userId)
         db.add(new_user)
         await db.commit()
 
@@ -27,20 +27,36 @@ async def start_session(req: SessionStartRequest, db: AsyncSession = Depends(get
     
     new_session = ReadingSession(
         id=session_id,
-        user_id=req.user_id,
-        document_id=req.document_id
+        user_id=req.userId,
+        document_id=req.articleId
     )
     db.add(new_session)
     await db.commit()
     
-    return SessionStartResponse(session_id=session_id, message="Session started successfully.")
+    host = request.headers.get("host", "localhost:8000")
+    ws_endpoint = f"ws://{host}/ws/reading/{session_id}"
+    
+    # 임시 Article Mock (2번 연동 전까지)
+    mock_article = {
+        "id": req.articleId,
+        "title": "AI 리터러시 데모 아티클",
+        "category": "Technology",
+        "author": "AI Care System",
+        "content": ["AI 기술이 발전함에 따라...", "특히 문해력이 중요한 시대가 되었습니다."],
+        "difficulty": "medium"
+    }
+    
+    return SessionStartResponse(
+        sessionId=session_id, 
+        article=mock_article,
+        wsEndpoint=ws_endpoint
+    )
 
 @router.post("/{session_id}/finish", response_model=SessionFinishResponse)
 async def finish_session(
     session_id: str, 
     req: SessionFinishRequest, 
     db: AsyncSession = Depends(get_db),
-    # async generator dependency -> use simple getter or fastAPI Depends
 ):
     from ..core.redis import REDIS_URL
     import redis.asyncio as redis
@@ -70,7 +86,6 @@ async def finish_session(
             db.add(new_event)
             saved_count += 1
             
-            # Orchestrator 상태 주입을 위한 이벤트 리스트 구성
             state_events.append({
                 "type": event_dict.get("type", "unknown"),
                 "timestamp_ms": event_dict.get("timestamp_ms", 0),
@@ -87,14 +102,12 @@ async def finish_session(
         initial_state["reading_events"] = state_events
         final_state = run_reading_session(initial_state)
 
-        # 4. 세션 정보 업데이트 (Orchestrator 최종 점수 반영)
+        # 4. 세션 정보 업데이트
         session.literacy_score = final_state.get("literacy_score", req.literacy_score)
         session.comprehension_score = final_state.get("comprehension_score", req.comprehension_score)
         session.engagement_score = final_state.get("engagement_score", req.engagement_score)
         
         await db.commit()
-        
-        # 4. Redis 캐시 비우기
         await redis_client.delete(redis_key)
         
         return SessionFinishResponse(
@@ -104,3 +117,39 @@ async def finish_session(
         )
     finally:
         await redis_client.aclose()
+
+@router.get("/{session_id}/result")
+async def get_session_result(session_id: str, db: AsyncSession = Depends(get_db)):
+    # DB 세션 조회
+    result = await db.execute(select(ReadingSession).filter(ReadingSession.id == session_id))
+    session = result.scalars().first()
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+        
+    # ReadingEvent 조회 (DB에 Flush 되었다고 가정)
+    events_result = await db.execute(select(ReadingEvent).filter(ReadingEvent.session_id == session_id))
+    events = events_result.scalars().all()
+    
+    state_events = []
+    for ev in events:
+        state_events.append({
+            "type": ev.event_type,
+            "timestamp_ms": ev.timestamp_ms,
+            "metadata": ev.metadata_json,
+            "position": ev.metadata_json.get("position"),
+            "duration_ms": ev.metadata_json.get("duration_ms")
+        })
+
+    initial_state = create_initial_state(
+        session_id=session_id,
+        user_id=session.user_id,
+        document_id=session.document_id,
+        raw_text=""
+    )
+    initial_state["reading_events"] = state_events
+    
+    # 임시 더미 퀴즈 결과 주입 (나중에 5번 연동 시 대체)
+    initial_state["quiz_result"] = {"score": 85.0}
+    
+    final_state = run_reading_session(initial_state)
+    return to_session_result(final_state)
