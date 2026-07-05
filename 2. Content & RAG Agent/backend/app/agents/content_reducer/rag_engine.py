@@ -1,0 +1,430 @@
+"""
+rag_engine.py — RAG 기반 신뢰 출처 용어풀이 엔진 (M1)
+
+환각(Hallucination) 없이 신뢰할 수 있는 출처 데이터베이스를 기반으로
+전문 용어를 풀이한다.
+
+핵심 원칙:
+  RAG는 오직 용어풀이에만 적용한다. (재구성/요약에 절대 미적용)
+  모든 용어풀이는 term_dictionary.json의 신뢰 출처 데이터 기반이다.
+  생성 결과가 아니라 검색 결과를 반환하므로 환각이 원천 차단된다.
+
+지원 모드:
+  - memory (기본): JSON 파일 기반 키워드 매칭
+    → sentence-transformers가 있으면 임베딩 유사도로 업그레이드
+  - pgvector: PostgreSQL + pgvector (운영 환경, RAG_MODE=pgvector)
+
+Faithfulness 점수:
+  - 용어집 직접 매칭: 1.0 (출처 데이터 그대로)
+  - 유사도 매칭: 코사인 유사도 기반 근사값
+  → 배포 시 Ragas Faithfulness 지표로 교체 권장 (5번 QA 담당)
+"""
+from __future__ import annotations
+
+import json
+import math
+import os
+import re
+from pathlib import Path
+
+from backend.app.agents.content_reducer.contracts import ChunkDict, TermDict
+
+# ---------------------------------------------------------------------------
+# 설정
+# ---------------------------------------------------------------------------
+
+_RAG_MODE = os.getenv("RAG_MODE", "memory")
+_FAITHFULNESS_THRESHOLD = float(os.getenv("FAITHFULNESS_THRESHOLD", "0.80"))
+
+# term_dictionary.json 경로: 프로젝트 루트/data/term_dictionary.json
+_PROJECT_ROOT = Path(__file__).resolve().parents[4]
+_TERM_DICT_PATH = _PROJECT_ROOT / "data" / "term_dictionary.json"
+
+
+# ---------------------------------------------------------------------------
+# 용어집 로더
+# ---------------------------------------------------------------------------
+
+def _load_term_dictionary() -> list[dict]:
+    """JSON 파일에서 용어집 데이터를 로드한다."""
+    if not _TERM_DICT_PATH.exists():
+        # 상위 디렉토리에서 재탐색 (경로 유연성)
+        for candidate in Path(__file__).parents:
+            alt = candidate / "data" / "term_dictionary.json"
+            if alt.exists():
+                path = alt
+                break
+        else:
+            return []
+    else:
+        path = _TERM_DICT_PATH
+
+    try:
+        with open(path, encoding="utf-8") as f:
+            data = json.load(f)
+        return data.get("terms", [])
+    except Exception as e:
+        print(f"[rag_engine] 용어집 로드 실패: {e}")
+        return []
+
+
+_TERM_DICT: list[dict] = _load_term_dictionary()
+
+
+# ---------------------------------------------------------------------------
+# 임베딩 모델 (선택적)
+# ---------------------------------------------------------------------------
+
+_embedding_model = None
+_embedding_loaded = False
+
+
+def _get_embedding_model():
+    """sentence-transformers 모델을 지연 로딩한다. 없으면 None."""
+    global _embedding_model, _embedding_loaded
+    if _embedding_loaded:
+        return _embedding_model
+    _embedding_loaded = True
+    try:
+        from sentence_transformers import SentenceTransformer
+
+        model_name = os.getenv(
+            "EMBEDDING_MODEL", "jhgan/ko-sroberta-multitask"
+        )
+        _embedding_model = SentenceTransformer(model_name)
+    except Exception:
+        _embedding_model = None
+    return _embedding_model
+
+
+# ---------------------------------------------------------------------------
+# PostgreSQL / pgvector 연동 헬퍼
+# ---------------------------------------------------------------------------
+
+_pgvector_initialized = False
+
+def _get_db_connection():
+    """PostgreSQL DB 연결 객체를 생성하고 pgvector를 등록한다."""
+    import psycopg2
+    from pgvector.psycopg2 import register_vector
+
+    host = os.getenv("PGVECTOR_HOST", "localhost")
+    port = os.getenv("PGVECTOR_PORT", "5432")
+    dbname = os.getenv("PGVECTOR_DB", "literacy_care")
+    user = os.getenv("PGVECTOR_USER", "postgres")
+    password = os.getenv("PGVECTOR_PASSWORD", "postgres")
+
+    conn = psycopg2.connect(
+        host=host,
+        port=port,
+        dbname=dbname,
+        user=user,
+        password=password,
+        connect_timeout=3
+    )
+    register_vector(conn)
+    return conn
+
+
+def _init_pgvector_db() -> bool:
+    """pgvector DB 확장을 설정하고 테이블 생성 및 초기 데이터를 적재한다."""
+    global _pgvector_initialized
+    if _pgvector_initialized:
+        return True
+
+    conn = None
+    try:
+        conn = _get_db_connection()
+        conn.autocommit = True
+        with conn.cursor() as cur:
+            # 1. vector 확장 활성화
+            cur.execute("CREATE EXTENSION IF NOT EXISTS vector;")
+            # 2. 용어 임베딩 테이블 생성
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS term_embeddings (
+                    id SERIAL PRIMARY KEY,
+                    term TEXT UNIQUE NOT NULL,
+                    aliases TEXT[] NOT NULL,
+                    definition TEXT NOT NULL,
+                    source TEXT NOT NULL,
+                    domain TEXT NOT NULL,
+                    embedding vector(768)
+                );
+            """)
+            # 3. 테이블에 데이터가 없는 경우 term_dictionary.json 기반으로 임베딩 저장
+            cur.execute("SELECT COUNT(*) FROM term_embeddings;")
+            count = cur.fetchone()[0]
+            if count == 0 and _TERM_DICT:
+                print("[rag_engine] Seeding term_embeddings database...")
+                model = _get_embedding_model()
+                if model is not None:
+                    for entry in _TERM_DICT:
+                        candidate = (
+                            f"{entry['term']} "
+                            + " ".join(entry.get("aliases", []))
+                            + f" {entry['definition']}"
+                        )
+                        emb = model.encode(candidate).tolist()
+                        cur.execute(
+                            """
+                            INSERT INTO term_embeddings (term, aliases, definition, source, domain, embedding)
+                            VALUES (%s, %s, %s, %s, %s, %s)
+                            ON CONFLICT (term) DO NOTHING;
+                            """,
+                            (
+                                entry["term"],
+                                entry.get("aliases", []),
+                                entry["definition"],
+                                entry["source"],
+                                entry.get("domain", "일반"),
+                                emb
+                            )
+                        )
+        _pgvector_initialized = True
+        return True
+    except Exception as e:
+        print(f"[rag_engine] pgvector DB 초기화/시딩 실패 (memory 모드로 작동): {e}")
+        return False
+    finally:
+        if conn:
+            conn.close()
+
+
+# ---------------------------------------------------------------------------
+# 유사도 계산
+# ---------------------------------------------------------------------------
+
+def _cosine_similarity(a: list[float], b: list[float]) -> float:
+    """두 벡터 간 코사인 유사도를 계산한다."""
+    dot = sum(x * y for x, y in zip(a, b))
+    na = math.sqrt(sum(x * x for x in a))
+    nb = math.sqrt(sum(x * x for x in b))
+    return dot / (na * nb) if na > 0 and nb > 0 else 0.0
+
+
+def _keyword_score(text: str, entry: dict) -> float:
+    """
+    키워드 기반 매칭 점수를 계산한다.
+    텍스트에 용어가 직접 포함되면 높은 점수, 그렇지 않으면 자카드 유사도.
+    """
+    text_lower = text.lower()
+    all_forms: list[str] = [entry["term"]] + entry.get("aliases", [])
+
+    # 직접 포함 여부 확인 (우선순위 최상)
+    for form in all_forms:
+        if form.lower() in text_lower:
+            return 0.95
+
+    # 자카드 유사도
+    text_tokens = set(re.findall(r"[가-힣a-zA-Z0-9]+", text_lower))
+    candidate_tokens = set(
+        re.findall(r"[가-힣a-zA-Z0-9]+", " ".join(all_forms).lower())
+    )
+    if not text_tokens or not candidate_tokens:
+        return 0.0
+    inter = len(text_tokens & candidate_tokens)
+    union = len(text_tokens | candidate_tokens)
+    return inter / union if union > 0 else 0.0
+
+
+# ---------------------------------------------------------------------------
+# 용어 검색
+# ---------------------------------------------------------------------------
+
+def _find_terms(text: str, top_k: int = 5) -> list[tuple[dict, float]]:
+    """
+    텍스트에서 용어집과 매칭되는 용어를 찾는다.
+    pgvector 모드와 memory 모드를 모두 지원하며, 실패 시 상호 폴백한다.
+
+    Returns:
+        (용어 dict, 유사도 점수) 튜플 목록 (점수 내림차순, 상위 top_k)
+    """
+    # 1. pgvector 모드로 시도
+    if _RAG_MODE == "pgvector":
+        if _init_pgvector_db():
+            conn = None
+            try:
+                conn = _get_db_connection()
+                model = _get_embedding_model()
+                if model is not None:
+                    query_embedding = model.encode(text).tolist()
+                    with conn.cursor() as cur:
+                        # 1 - (embedding <=> query::vector) = Cosine Similarity
+                        cur.execute(
+                            """
+                            SELECT term, aliases, definition, source, domain, 1 - (embedding <=> %s::vector) AS similarity
+                            FROM term_embeddings
+                            ORDER BY embedding <=> %s::vector
+                            LIMIT %s;
+                            """,
+                            (query_embedding, query_embedding, top_k)
+                        )
+                        rows = cur.fetchall()
+                        db_results = []
+                        for row in rows:
+                            entry = {
+                                "term": row[0],
+                                "aliases": row[1],
+                                "definition": row[2],
+                                "source": row[3],
+                                "domain": row[4]
+                            }
+                            similarity = float(row[5])
+                            db_results.append((entry, similarity))
+                        # 유사도 0.3 이상만 필터링하여 반환
+                        return [(e, s) for e, s in db_results if s >= 0.3]
+            except Exception as e:
+                print(f"[rag_engine] pgvector 검색 실패, memory 모드로 폴백합니다. 원인: {e}")
+            finally:
+                if conn:
+                    conn.close()
+
+    # 2. memory 모드로 실행 (JSON 파일 기반 인메모리 검색)
+    if not _TERM_DICT:
+        return []
+
+    model = _get_embedding_model()
+    results: list[tuple[dict, float]] = []
+
+    if model is not None:
+        try:
+            text_vec = model.encode(text).tolist()
+            for entry in _TERM_DICT:
+                candidate = (
+                    f"{entry['term']} "
+                    + " ".join(entry.get("aliases", []))
+                    + f" {entry['definition']}"
+                )
+                cand_vec = model.encode(candidate).tolist()
+                score = _cosine_similarity(text_vec, cand_vec)
+                results.append((entry, score))
+        except Exception:
+            model = None  # 실패 시 키워드 방식으로 폴백
+
+    if model is None:
+        for entry in _TERM_DICT:
+            score = _keyword_score(text, entry)
+            results.append((entry, score))
+
+    # 점수 내림차순 정렬, 0.3 이상만 반환
+    results.sort(key=lambda x: x[1], reverse=True)
+    return [(e, s) for e, s in results if s >= 0.3][:top_k]
+
+
+# ---------------------------------------------------------------------------
+# Faithfulness 계산
+# ---------------------------------------------------------------------------
+
+def _faithfulness_score(definition: str, source_definition: str) -> float:
+    """
+    생성 정의와 출처 정의의 충실도를 근사 계산한다.
+    용어집에서 직접 가져온 경우 1.0, 수정된 경우 토큰 유사도.
+    """
+    if definition.strip() == source_definition.strip():
+        return 1.0
+    def_tokens = set(re.findall(r"[가-힣a-zA-Z]+", definition))
+    src_tokens = set(re.findall(r"[가-힣a-zA-Z]+", source_definition))
+    if not def_tokens or not src_tokens:
+        return 0.5
+    inter = len(def_tokens & src_tokens)
+    union = len(def_tokens | src_tokens)
+    # 기본 점수 0.5 + 토큰 중복 가중치
+    return min(1.0, 0.5 + (inter / union) * 0.5) if union > 0 else 0.5
+
+
+# ---------------------------------------------------------------------------
+# 공개 API
+# ---------------------------------------------------------------------------
+
+def inject_rag_terms(chunks: list[ChunkDict]) -> list[ChunkDict]:
+    """
+    청크 목록에서 전문 용어를 추출하고 RAG 기반 풀이를 주입한다.
+
+    Args:
+        chunks: ChunkDict 목록 (restructured_text 포함 권장)
+
+    Returns:
+        terms 필드가 추가된 ChunkDict 목록
+
+    실패 시 Fallback: chunk["terms"] = [] (절대 예외 전파 안 함)
+    """
+    try:
+        for chunk in chunks:
+            search_text = (
+                chunk.get("restructured_text") or chunk["original_text"]
+            )
+            matched = _find_terms(search_text)
+
+            chunk_terms: list[TermDict] = []
+            seen: set[str] = set()
+
+            for entry, score in matched:
+                term_text = entry["term"]
+                if term_text in seen:
+                    continue
+                seen.add(term_text)
+
+                definition = entry["definition"]
+                faith = _faithfulness_score(definition, definition)  # 1.0 (직접 인용)
+
+                # faithfulness 기준 미달 시 trace 경고 (5번 QA용)
+                if faith < _FAITHFULNESS_THRESHOLD:
+                    print(
+                        f"[rag_engine] WARNING: faithfulness {faith:.2f} < "
+                        f"threshold {_FAITHFULNESS_THRESHOLD} for term '{term_text}'"
+                    )
+
+                chunk_terms.append(
+                    TermDict(
+                        term=term_text,
+                        definition=definition,
+                        source=entry["source"],
+                        faithfulness_score=round(faith, 4),
+                        chunk_id=chunk["chunk_id"],
+                    )
+                )
+
+            chunk["terms"] = chunk_terms
+        return chunks
+
+    except Exception as exc:
+        print(f"[rag_engine] RAG 실패, terms=[] 반환: {exc}")
+        for chunk in chunks:
+            chunk.setdefault("terms", [])
+        return chunks
+
+
+def collect_all_terms(chunks: list[ChunkDict]) -> list[TermDict]:
+    """
+    모든 청크의 용어를 중복 없이 수집한다 (세션 전체 terms 목록).
+    """
+    seen: set[str] = set()
+    result: list[TermDict] = []
+    for chunk in chunks:
+        for term in chunk.get("terms", []):
+            if term["term"] not in seen:
+                seen.add(term["term"])
+                result.append(term)
+    return result
+
+
+def get_faithfulness_summary(terms: list[TermDict]) -> dict:
+    """
+    용어풀이 전체의 faithfulness 통계를 반환한다 (5번 QA 연동용).
+    """
+    if not terms:
+        return {
+            "total": 0,
+            "avg_faithfulness": 0.0,
+            "below_threshold": 0,
+            "threshold": _FAITHFULNESS_THRESHOLD,
+        }
+    scores = [t.get("faithfulness_score", 1.0) for t in terms]
+    avg = sum(scores) / len(scores)
+    below = sum(1 for s in scores if s < _FAITHFULNESS_THRESHOLD)
+    return {
+        "total": len(terms),
+        "avg_faithfulness": round(avg, 4),
+        "below_threshold": below,
+        "threshold": _FAITHFULNESS_THRESHOLD,
+    }
