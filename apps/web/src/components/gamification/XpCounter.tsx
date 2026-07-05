@@ -20,6 +20,7 @@ export const XpCounter: React.FC<XpCounterProps> = ({ xp }) => {
       onUpdate: (latest) => setDisplayXp(Math.round(latest)),
     });
     return () => controls.stop();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [xp]);
 
   return (

@@ -116,9 +116,14 @@ export const ReadingPane: React.FC = () => {
 
   const containerRef = useRef<HTMLDivElement>(null);
   const lastScrollY = useRef(0);
-  const lastScrollTime = useRef(Date.now());
-  const dwellStart = useRef(Date.now());
+  const lastScrollTime = useRef(0);
+  const dwellStart = useRef(0);
   const currentParagraph = useRef(0);
+
+  useEffect(() => {
+    lastScrollTime.current = Date.now();
+    dwellStart.current = Date.now();
+  }, []);
 
   // ── 스크롤 진행률 + 속도 계산 ──
   const handleScroll = useCallback(() => {
