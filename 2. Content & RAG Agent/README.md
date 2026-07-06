@@ -149,4 +149,4 @@ python -m pytest backend/app/tests/test_content_e2e.py -v
 | M2 | 7/6  | ✅ 퀴즈 생성 및 Orchestrator 통합 완료 |
 | **ME** | 7/6~7/9 | ✅ 크롬 확장 및 PDF 대응 인입/Header/Footer 제거/Lookup 완료 |
 | M3 | 7/10 | ✅ 기능 동결 및 Gemini API 완전 마이그레이션 완료 |
-| M4 | 7/14 | ⏳ 최종 제출본 점검 |
+| M4 | 7/14 | ✅ 최종 제출본 점검 및 기술 방어 스크립트 작성 완료 |

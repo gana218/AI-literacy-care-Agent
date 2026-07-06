@@ -506,15 +506,15 @@ M2 종료 전 확인할 항목:
 
 Phase E(7/9) 종료 전 확인할 항목:
 
-- [ ] 웹페이지 `content[]`와 PDF `content[]`가 **동일 형태(문단 문자열 배열)**로 백엔드에 도달한다.
-- [ ] `POST /api/session/start`가 web·PDF 양쪽 `content[]`로 세션을 시작하고 chunks/terms를 반환한다.
-- [ ] PDF 본문에서 반복 머리말/꼬리말·쪽번호가 문단으로 새어들지 않는다.
-- [ ] 스캔(텍스트 레이어 없는) PDF에서 안내 문단 폴백이 동작한다.
-- [ ] `POST /api/terms/lookup`이 단어→`TermDict`(term/definition/source)를 반환한다.
-- [ ] 용어풀이가 **유료 API 없이** 세션캐시/로컬사전/기존 RAG 경로로만 동작한다.
-- [ ] 미발견 단어는 `source="not_found"`로 반환되어 프론트가 조용히 무시할 수 있다.
-- [ ] `test_extension_session.py`에 확장 인입·정규화·lookup 케이스가 추가되어 통과한다.
-- [ ] 확장 추가로 기존 `test_content_e2e.py` 등 기존 테스트가 깨지지 않는다.
+- [x] 웹페이지 `content[]`와 PDF `content[]`가 **동일 형태(문단 문자열 배열)**로 백엔드에 도달한다.
+- [x] `POST /api/session/start`가 web·PDF 양쪽 `content[]`로 세션을 시작하고 chunks/terms를 반환한다.
+- [x] PDF 본문에서 반복 머리말/꼬리말·쪽번호가 문단으로 새어들지 않는다.
+- [x] 스캔(텍스트 레이어 없는) PDF에서 안내 문단 폴백이 동작한다.
+- [x] `POST /api/terms/lookup`이 단어→`TermDict`(term/definition/source)를 반환한다.
+- [x] 용어풀이가 **유료 API 없이** 세션캐시/로컬사전/기존 RAG 경로로만 동작한다.
+- [x] 미발견 단어는 `source="not_found"`로 반환되어 프론트가 조용히 무시할 수 있다.
+- [x] `test_extension_session.py`에 확장 인입·정규화·lookup 케이스가 추가되어 통과한다.
+- [x] 확장 추가로 기존 `test_content_e2e.py` 등 기존 테스트가 깨지지 않는다.
 
 ---
 
