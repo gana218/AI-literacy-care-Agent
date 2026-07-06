@@ -26,7 +26,7 @@ def to_reading_event(front_event: dict) -> dict:
 @router.websocket("/reading/{session_id}")
 async def websocket_endpoint(websocket: WebSocket, session_id: str):
     await websocket.accept()
-    redis_client: redis.Redis = await get_redis()
+    redis_client = await get_redis()
     redis_key = f"session:{session_id}:events"
     
     try:
@@ -67,5 +67,8 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
             except json.JSONDecodeError:
                 await websocket.send_text(json.dumps({"type": "error", "payload": {"message": "Invalid JSON format"}}))
                 
+                
     except WebSocketDisconnect:
         print(f"Client {session_id} disconnected")
+    finally:
+        await redis_client.aclose()

@@ -3,7 +3,9 @@ from typing import Optional
 
 class SessionStartRequest(BaseModel):
     userId: str
-    articleId: str
+    articleId: Optional[str] = None
+    content: Optional[list[str]] = None
+    source: Optional[dict] = None
 
 class SessionStartResponse(BaseModel):
     sessionId: str
@@ -19,3 +21,12 @@ class SessionFinishResponse(BaseModel):
     session_id: str
     message: str
     saved_events_count: int
+
+class EventItem(BaseModel):
+    type: str
+    timestamp_ms: int
+    duration_ms: Optional[int] = None
+    position: Optional[float] = None
+
+class EventsRequestModel(BaseModel):
+    events: list[EventItem]
