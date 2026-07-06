@@ -779,8 +779,8 @@ git commit -m "fix: stabilize content pipeline and improve faithfulness"
 - [x] (확장 E1~E2) web/PDF content[] 정규화 동일화 + 반복 머리말/꼬리말 제거
 - [x] (확장 E3) 무료 용어풀이 `POST /api/terms/lookup` 구현 (유료 API 미사용)
 - [x] (확장 E5) `test_extension_session.py` 확장 케이스 추가 통과
-- [ ] 7/10 M3 이후 구조 변경 없음 (7/11~7/14 버그 수정·검토만)
-- [ ] 발표용 RAG 환각 방지 + 확장(웹/PDF 무설치 폴백) 설명 준비
+- [x] 7/10 M3 이후 구조 변경 없음 (7/11~7/14 버그 수정·검토만)
+- [x] 발표용 RAG 환각 방지 + 확장(웹/PDF 무설치 폴백) 설명 준비
 
 ---
 
