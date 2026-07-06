@@ -1,6 +1,21 @@
 import sys
 import asyncio
 import traceback
+import os
+
+# 로컬 .env 파일 환경변수 자동 로드 (7/13, 7/14 API 키 설정 지원)
+try:
+    env_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), ".env")
+    if os.path.exists(env_path):
+        with open(env_path, encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if "=" in line and not line.startswith("#"):
+                    k, v = line.split("=", 1)
+                    os.environ[k.strip()] = v.strip()
+        print("[Startup] Loaded environment from local .env file.")
+except Exception as e:
+    print(f"[Startup] Failed to load .env: {e}")
 
 if sys.platform == "win32":
     asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())

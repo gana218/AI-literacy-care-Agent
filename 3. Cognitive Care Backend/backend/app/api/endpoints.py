@@ -309,3 +309,39 @@ async def explain_term(
     )
     
     return TermExplainResponse(explanation=explanation)
+
+@router.post("/reset")
+async def reset_demo_data(db: AsyncSession = Depends(get_db)):
+    """전체 데이터베이스 및 Redis 세션 데이터를 완전 초기화하여 시연 리허설 반복 실행을 보장함 (7/13, 7/14)"""
+    from sqlalchemy import delete
+    from ..models.models import ReadingEvent, ReadingSession, User, LiteracyProfile, QuizResult
+    
+    redis_client = await get_redis()
+    
+    try:
+        # 1. DB 모든 레코드 삭제
+        await db.execute(delete(QuizResult))
+        await db.execute(delete(ReadingEvent))
+        await db.execute(delete(ReadingSession))
+        await db.execute(delete(LiteracyProfile))
+        await db.execute(delete(User))
+        await db.commit()
+        
+        # 2. Redis 세션 캐시 버퍼 제거
+        # Redis 내의 모든 키를 탐색하여 삭제
+        # InMemoryRedisClient의 경우 store를 직접 비워줌
+        if hasattr(redis_client, "store"):
+            redis_client.store.clear()
+        else:
+            # 실제 Redis일 경우 keys 조회 및 삭제
+            keys = await redis_client.keys("session:*:events")
+            for k in keys:
+                await redis_client.delete(k)
+                
+        print("[Reset] Database and Redis cache successfully cleared for demo rehearsal.")
+        return {"status": "success", "message": "Demo data successfully reset."}
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(status_code=500, detail=f"Database reset failed: {str(e)}")
+    finally:
+        await redis_client.aclose()
