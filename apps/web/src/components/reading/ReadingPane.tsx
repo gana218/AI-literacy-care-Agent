@@ -63,7 +63,7 @@ interface ParagraphProps {
 }
 
 const Paragraph: React.FC<ParagraphProps> = React.memo(({ index, text, isHighlighted, onVisible }) => {
-  const ref = useRef<HTMLParagraphElement>(null);
+  const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const el = ref.current;
@@ -81,7 +81,7 @@ const Paragraph: React.FC<ParagraphProps> = React.memo(({ index, text, isHighlig
   const content = renderWithTerms(text);
 
   return (
-    <p
+    <div
       ref={ref}
       data-paragraph={index}
       style={{
@@ -96,7 +96,7 @@ const Paragraph: React.FC<ParagraphProps> = React.memo(({ index, text, isHighlig
       }}
     >
       {isHighlighted ? <HighlightText intensity="normal">{content}</HighlightText> : content}
-    </p>
+    </div>
   );
 });
 Paragraph.displayName = 'Paragraph';
