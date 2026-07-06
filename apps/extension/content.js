@@ -83,7 +83,7 @@ setInterval(() => {
 }, 2000);
 
 // 4. RAG Term Lookup (Hover/Double Click/Drag)
-document.addEventListener('mouseup', (e) => {
+function handleTextSelection(e) {
   if (!isSessionActive) return;
   
   // Ignore clicks inside the tooltip
@@ -95,6 +95,7 @@ document.addEventListener('mouseup', (e) => {
     const selectedText = selection.toString().trim();
     
     if (selectedText.length > 0 && selectedText.length < 30) {
+      console.log("AI Literacy Care - Text selected:", selectedText);
       // Lookup term
       chrome.runtime.sendMessage({ type: "LOOKUP_TERM", word: selectedText }, (res) => {
         if (res && res.success && res.term && res.term.source !== 'not_found') {
@@ -104,8 +105,11 @@ document.addEventListener('mouseup', (e) => {
         }
       });
     }
-  }, 10);
-});
+  }, 50);
+}
+
+document.addEventListener('mouseup', handleTextSelection);
+document.addEventListener('dblclick', handleTextSelection);
 
 let currentTooltip = null;
 
