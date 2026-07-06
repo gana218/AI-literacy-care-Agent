@@ -36,8 +36,8 @@ def run_reading_session(state: ReadingSessionState) -> ReadingSessionState:
         events_data.append({
             "timestamp_ms": e.get("timestamp_ms", 0),
             "type": e.get("type", "unknown"),
-            "position": metadata.get("position"),
-            "duration_ms": metadata.get("duration_ms")
+            "position": e.get("position", metadata.get("position")),
+            "duration_ms": e.get("duration_ms", metadata.get("duration_ms")) or 1000
         })
         
     focus_score = calculate_focus_score(events_data)
@@ -55,8 +55,11 @@ def run_reading_session(state: ReadingSessionState) -> ReadingSessionState:
     
     # 2. Score Engine Stub (1번 역할 추가 구현 예정)
     state["literacy_score"] = 85.0
-    state["comprehension_score"] = 90.0
-    state["engagement_score"] = focus_score
+    state["score_breakdown"] = {
+        "comprehension_score": 90.0,
+        "engagement_score": focus_score,
+        "difficulty_score": 50.0
+    }
     
     state["trace"].append({
         "step": "score_engine",
