@@ -117,6 +117,7 @@ export const ReadingPane: React.FC = () => {
   const containerRef = useRef<HTMLDivElement>(null);
   const lastScrollY = useRef(0);
   const lastScrollTime = useRef(Date.now());
+  const lastWsSendTime = useRef(0); // WS 전송 스로틀용 쿨타임 ref
   const dwellStart = useRef(Date.now());
   const currentParagraph = useRef(0);
 
@@ -136,10 +137,11 @@ export const ReadingPane: React.FC = () => {
     const velocity = deltaT > 0 ? Math.round(deltaY / deltaT) : 0;
     setScrollVelocity(velocity);
 
-    // ── 7/6 WebSocket 전송 ──
+    // ── 7/6 WebSocket 전송 (150ms 단위 스로틀링 적용) ──
     const wsClient = getActiveWsClient();
-    if (wsClient && sessionId) {
+    if (wsClient && sessionId && now - lastWsSendTime.current > 150) {
       sendScrollEvent(wsClient, sessionId, velocity, progress);
+      lastWsSendTime.current = now;
     }
 
     lastScrollY.current = scrollTop;

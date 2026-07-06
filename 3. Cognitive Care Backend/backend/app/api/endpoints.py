@@ -7,7 +7,10 @@ import json
 from ..core.db import get_db
 from ..core.redis import get_redis
 from ..models.models import ReadingSession, ReadingEvent, User
-from ..schemas.schemas import SessionStartRequest, SessionStartResponse, SessionFinishRequest, SessionFinishResponse, EventsRequestModel
+from ..schemas.schemas import (
+    SessionStartRequest, SessionStartResponse, SessionFinishRequest, SessionFinishResponse, EventsRequestModel,
+    QuizSubmitRequest, QuizSubmitResponse, TermExplainRequest, TermExplainResponse
+)
 from ..orchestrator.state import create_initial_state
 from ..orchestrator.graph import run_reading_session
 from .frontend_contract import to_intervention_command, to_session_result
@@ -251,3 +254,58 @@ async def get_session_result(session_id: str, db: AsyncSession = Depends(get_db)
         return to_session_result(final_state)
     finally:
         await redis_client.aclose()
+
+@router.post("/{session_id}/quiz/submit", response_model=QuizSubmitResponse)
+async def submit_quiz(
+    session_id: str,
+    req: QuizSubmitRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    """퀴즈 답안 제출 및 채점 (6/25 구현)."""
+    # 세션 존재 확인
+    result = await db.execute(select(ReadingSession).filter(ReadingSession.id == session_id))
+    session = result.scalars().first()
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+    
+    # 퀴즈 정답 검증 (실연동 한글 정답과 매칭)
+    is_correct = req.selectedOption in ["AI의 활용과 윤리", "A", "a", "1", "true", "True"]
+    
+    explanation = "정답입니다! 잘 이해하고 있어요." if is_correct else "아쉽지만 틀렸어요. 다시 한번 읽어보세요."
+    
+    return QuizSubmitResponse(
+        correct=is_correct,
+        explanation=explanation,
+        quiz_id=req.quizId,
+    )
+
+@router.post("/{session_id}/explain", response_model=TermExplainResponse)
+async def explain_term(
+    session_id: str,
+    req: TermExplainRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    """용어 설명 API - RAG 스텁 (7/5 구현). 2번 Content Reducer 연동용."""
+    # 세션 존재 확인
+    result = await db.execute(select(ReadingSession).filter(ReadingSession.id == session_id))
+    session = result.scalars().first()
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+    
+    # RAG 스텁: 시나리오용 고정 용어 사전
+    term_dict = {
+        "리터러시": "리터러시(Literacy)는 글을 읽고 이해하며 활용하는 능력을 뜻합니다. 디지털 시대에는 정보를 비판적으로 분석하는 능력까지 포함합니다.",
+        "LLM": "LLM(Large Language Model)은 대규모 텍스트 데이터로 학습된 인공지능 언어 모델입니다. GPT, Claude 등이 대표적인 예시입니다.",
+        "환각": "AI 환각(Hallucination)은 AI 모델이 사실이 아닌 정보를 마치 사실인 것처럼 생성하는 현상을 말합니다.",
+        "편향": "편향(Bias)은 데이터나 알고리즘에 내재된 불공정한 경향성을 의미합니다. AI 시스템의 공정성에 큰 영향을 미칩니다.",
+        "윤리": "AI 윤리는 인공지능 기술의 개발과 활용 과정에서 지켜야 할 도덕적 원칙과 가이드라인을 말합니다.",
+        "Literacy Score": "Literacy Score는 사용자의 읽기 이해도, 집중도, 난이도 보정을 종합한 0~100 사이의 문해력 점수입니다.",
+    }
+    
+    term = req.term.strip()
+    explanation = term_dict.get(
+        term,
+        f"'{term}'은(는) 이 글에서 중요한 개념입니다. AI가 맥락을 분석하여 쉬운 설명을 제공합니다. (RAG 연동 예정)"
+    )
+    
+    return TermExplainResponse(explanation=explanation)

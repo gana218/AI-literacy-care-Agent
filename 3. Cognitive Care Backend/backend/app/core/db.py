@@ -20,6 +20,7 @@ else:
 
 AsyncSessionLocal = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 Base = declarative_base()
+_db_verified = False # DB 연결 확인 여부 플래그 선언
 
 async def get_db():
     global engine, AsyncSessionLocal, _db_verified
@@ -35,6 +36,9 @@ async def get_db():
         except Exception as e:
             print(f"[DB] PostgreSQL connection failed ({e}). Switching to SQLite...")
             engine = create_async_engine("sqlite+aiosqlite:///./literacy_care.db", echo=False)
+            # 즉각적으로 SQLite 테이블들 생성
+            async with engine.begin() as conn:
+                await conn.run_sync(Base.metadata.create_all)
             AsyncSessionLocal = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
             _db_verified = True
             

@@ -114,6 +114,7 @@ export default function ReadingPage() {
                 .then((scoreResult) => {
                   if (!active) return;
                   useScoreStore.setState({
+                    isFinalized: true, // 실시간 엔진 덮어쓰기 잠금
                     literacyScore: scoreResult.literacyScore,
                     comprehensionScore: scoreResult.comprehensionScore,
                     engagementScore: scoreResult.engagementScore,

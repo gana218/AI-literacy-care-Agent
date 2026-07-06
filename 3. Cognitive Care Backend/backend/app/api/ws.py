@@ -109,12 +109,12 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
                                     "id": f"auto-quiz-{int(time.time())}",
                                     "question": "방금 읽은 내용의 핵심 주제는 무엇인가요?",
                                     "options": [
-                                        {"id": "A", "text": "AI의 활용과 윤리"},
-                                        {"id": "B", "text": "요리 레시피"},
-                                        {"id": "C", "text": "운동 방법"},
-                                        {"id": "D", "text": "여행 계획"},
+                                        "AI의 활용과 윤리",
+                                        "요리 레시피",
+                                        "운동 방법",
+                                        "여행 계획",
                                     ],
-                                    "correctAnswer": "A",
+                                    "correctOption": "AI의 활용과 윤리",
                                 }
                             },
                             "timestamp": int(time.time() * 1000)
