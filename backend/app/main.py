@@ -8,7 +8,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 
-from .api import ws, endpoints
+from .api import ws, endpoints, extension_session, terms, users
 from .core.db import engine, Base
 from .models import models
 
@@ -35,6 +35,9 @@ app.add_middleware(
 # Register routers
 app.include_router(ws.router)
 app.include_router(endpoints.router)
+app.include_router(extension_session.router)
+app.include_router(terms.router)
+app.include_router(users.router)
 
 @app.get("/")
 async def root():
