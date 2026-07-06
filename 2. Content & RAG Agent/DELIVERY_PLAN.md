@@ -81,9 +81,14 @@
 | M0 | 6/22 | Stub E2E 및 계약 초안 | 1번 Orchestrator가 stub으로 전체 흐름 실행 가능 |
 | M1 | 6/29 | 핵심 콘텐츠 파이프라인 완성 | 원문 → 청킹 → 재구성 → 용어풀이 흐름 동작 |
 | M2 | 7/6 | 퀴즈 생성 및 전 기능 통합 | 퀴즈 생성 + 1번 실제 Orchestrator 연결 |
-| M3 | 7/10 | 기능 동결 | 구조 변경 없이 버그 수정만 남음 |
-| M4 | 7/14 | 제출본 점검 | 시연 흐름 반복 실행 가능 |
+| **ME** | **7/6~7/9** | **확장(Chrome) 대응 — 2번 추가 작업** | **content[] 정규화 + PDF 문단 재구성 + 무료 용어풀이 완료** |
+| M3 | 7/10 | 기능 동결 | **웹/PDF/용어풀이 포함 전 기능 완성**, 이후 구조 변경 없이 버그 수정만 |
+| — | 7/11~7/14 | **버그 수정·검토만** | 신규 기능·구조 변경 금지, 데모 고정·리허설 |
 | Final | 7/15 | 프로그램 제출 | 팀 최종 산출물 제출 |
+
+> **일정 원칙(확장 반영)**: 확장 추가 작업(ME)은 M2 직후 7/6~7/9에 진행하고 **7/10(M3)에
+> 웹·PDF·용어풀이까지 모든 모델/기능을 동결**한다. **7/11~7/14는 버그 수정·검토만** 하고,
+> **7/15에 제출**한다. 확장 대응 상세 작업 분해는 §27-E를 참조한다.
 
 ---
 
@@ -395,17 +400,56 @@ Phase 5의 목표는 7/14까지 제출 가능한 상태를 확인하고, **2번 
 | 7/2 | 최소 작업 | 프롬프트 미세조정, 용어집 데이터 추가 수집 |
 | 7/3 | 최소 작업 | 계약 변경사항 1번과 동기화, 문서 업데이트 |
 | 7/4 | 최소 작업 | 테스트 케이스 보강, 엣지 케이스 처리 |
-| 7/5 | 통합 보강 | 1번 Orchestrator와 실제 모듈 연결 준비 |
-| 7/6 | M2 완료 | 1번 실제 연결 + test_content_e2e.py 통과 |
-| 7/7 | 통합 조정 | 3번/4번 응답 형식 맞춤 |
-| 7/8 | 안정화 | RAG 검색 정확도 보정, 퀴즈 edge case 처리 |
-| 7/9 | 안정화 | 5번 QA 피드백 반영, faithfulness 개선 |
-| 7/10 | M3 완료 | 기능 동결 |
-| 7/11 | 버퍼 | 잔여 버그 수정 |
-| 7/12 | 버퍼 | 데모 데이터 고정 |
-| 7/13 | 리허설 | RAG 환각 방지 발표 연습 |
-| 7/14 | M4 완료 | 제출본 점검 |
+| 7/5 | 통합 보강 | 1번 Orchestrator와 실제 모듈 연결 준비 ✅ |
+| 7/6 | M2 완료 + 확장 착수 | 1번 실제 연결 + test_content_e2e.py 통과 ✅ / 확장 인입(content[]) 정합 검토 시작 |
+| 7/7 | 확장 ① content[] 정규화 | web=Readability / PDF=pdf.js **동일 content[]** 정규화, `_content_to_raw_text` 반복라인 제거 강화 + 테스트 |
+| 7/8 | 확장 ② PDF 문단 재구성 | `itemsToParagraphs` 머리말/꼬리말(반복 라인) 제거 추가, 스캔 PDF 폴백 검증 |
+| 7/9 | 확장 ③ 무료 용어풀이 | `POST /api/terms/lookup`(세션캐시→로컬사전→RAG 재사용, 유료 금지) + (선택) 문단 난이도 태그 |
+| 7/10 | **M3 완료 — 전 기능 동결** | 웹/PDF/용어풀이 포함 모든 모델·기능 완성, 이후 구조 변경 금지 |
+| 7/11 | 버그 수정·검토만 | 잔여 버그 수정 (기능 추가·구조 변경 없음) |
+| 7/12 | 버그 수정·검토만 | 데모 데이터 고정, fallback 경로 재확인 |
+| 7/13 | 버그 수정·검토만 | RAG 환각 방지·확장 시연 리허설 |
+| 7/14 | 검토 마감 | 제출본 점검 (누락 파일/환경 변수/시연 흐름 반복) |
 | 7/15 | 제출 | 프로그램 최종 제출 |
+
+---
+
+## 27-E. 확장(Chrome) 대응 — 2번 추가 작업 상세 (Phase E, 7/6~7/9)
+
+> 근거: `docs/EXTENSION_DESIGN.md` §10(2번) / §13-6. 설계 상세는 `2_ARCHITECTURE.md` §12.
+> 원칙: **코어(이벤트→개입→점수)·계약 불변.** 이번 추가는 "새 입력원(웹/PDF) 정규화 +
+> 단어 무료 용어풀이"뿐이다. 웹↔PDF 중복을 만들지 않는다.
+
+### 이미 완료된 부분 (확인)
+
+- [x] 확장 인입 라우트 `POST /api/session/start`가 `content[]`를 받아 세션 시작 (`extension_session.py`)
+- [x] `_content_to_raw_text`: `content[]` → `raw_text` 기본 정규화(strip·빈문자 제거·`\n\n` join)
+- [x] 세션 시작 시 `run_content_reducer`로 기존 청킹/재구성/RAG 파이프라인 재사용 (계약 불변)
+- [x] PDF 문단 재구성 1차: y좌표 줄분리·`hasEOL`·빈줄 문단분리·하이픈 병합 (`viewer.js itemsToParagraphs`)
+- [x] 스캔 PDF(텍스트 레이어 없음) 안내 문단 폴백
+
+### 남은 추가 작업 (7/6~7/9 완료 목표)
+
+| # | Task | 담당 경계 | Done When |
+|---|---|---|---|
+| E1 | **content[] 정규화 동일화** | 2번 | web=Readability / PDF=pdf.js 결과가 **같은 문단 배열 형태**로 백엔드에 도달함이 테스트로 확인됨 |
+| E2 | **반복 머리말/꼬리말 제거** | 2번 | `_content_to_raw_text`(또는 `itemsToParagraphs`)가 여러 페이지 반복 라인(제목·쪽번호)을 빈도·길이 이중 조건으로 제거 |
+| E3 | **무료 용어풀이 lookup** | 2번 | `POST /api/terms/lookup`이 단어→`TermDict` 반환. 세션캐시→로컬사전→RAG 재사용 순, **유료 API 미사용**. 미발견 시 `source="not_found"` |
+| E4 | (선택) **문단 난이도 태그** | 2번 | 어려운 문단 우선 개입용 `difficulty` 데이터를 3번에 제공(계약 변경 없음) |
+| E5 | **확장 인입 테스트** | 2번 | `test_extension_session.py`에 web/PDF content[] 정규화·반복라인 제거·lookup 케이스 추가 후 통과 |
+
+### Phase E 완료 기준 (7/9)
+
+- 웹페이지·PDF 어느 쪽에서 들어와도 **동일 `content[]` 계약**으로 파이프라인이 동작한다.
+- PDF 본문에서 반복 머리말/꼬리말·쪽번호가 청킹 노이즈로 새지 않는다.
+- 단어 hover 용어풀이가 **비용 0 경로**로 뜻을 반환하고, 없으면 조용히 폴백한다.
+- 기존 `contracts.py`·팀원 연결은 **깨지지 않는다**(신규 계약은 `terms/lookup` 하나뿐).
+
+### Phase E Not Today (범위 밖)
+
+- 스캔 PDF OCR(Tesseract.js) — 후속 트랙
+- 크롬 밖 다른 뷰어/앱 창 측정 — 네이티브 에이전트 별도 트랙
+- 유료 사전/번역 API 도입 — 비용 0 원칙 위반, 금지
 
 ---
 
@@ -458,6 +502,22 @@ M2 종료 전 확인할 항목:
 
 ---
 
+## 30-E. Manual QA for 확장 (Phase E)
+
+Phase E(7/9) 종료 전 확인할 항목:
+
+- [ ] 웹페이지 `content[]`와 PDF `content[]`가 **동일 형태(문단 문자열 배열)**로 백엔드에 도달한다.
+- [ ] `POST /api/session/start`가 web·PDF 양쪽 `content[]`로 세션을 시작하고 chunks/terms를 반환한다.
+- [ ] PDF 본문에서 반복 머리말/꼬리말·쪽번호가 문단으로 새어들지 않는다.
+- [ ] 스캔(텍스트 레이어 없는) PDF에서 안내 문단 폴백이 동작한다.
+- [ ] `POST /api/terms/lookup`이 단어→`TermDict`(term/definition/source)를 반환한다.
+- [ ] 용어풀이가 **유료 API 없이** 세션캐시/로컬사전/기존 RAG 경로로만 동작한다.
+- [ ] 미발견 단어는 `source="not_found"`로 반환되어 프론트가 조용히 무시할 수 있다.
+- [ ] `test_extension_session.py`에 확장 인입·정규화·lookup 케이스가 추가되어 통과한다.
+- [ ] 확장 추가로 기존 `test_content_e2e.py` 등 기존 테스트가 깨지지 않는다.
+
+---
+
 ## 31. Verification Commands
 
 Python 백엔드 기준 검증 명령:
@@ -468,6 +528,7 @@ python -m pytest backend/app/tests/test_chunker.py
 python -m pytest backend/app/tests/test_rag_engine.py
 python -m pytest backend/app/tests/test_quiz_generator.py
 python -m pytest backend/app/tests/test_content_e2e.py
+python -m pytest backend/app/tests/test_extension_session.py
 python -m pytest
 ```
 
@@ -713,8 +774,13 @@ git commit -m "fix: stabilize content pipeline and improve faithfulness"
 - [x] 4번 프론트 JSON 형식 확인
 - [x] 5번 QA trace/faithfulness_score 전달 확인
 - [x] M1 파이프라인 3회 이상 반복 성공
-- [ ] M3 이후 구조 변경 없음
-- [ ] 발표용 RAG 환각 방지 설명 준비
+- [x] 확장 인입 라우트(`extension_session.py`) content[] 세션 시작 동작
+- [x] PDF 문단 재구성 1차(줄/하이픈/빈줄 분리, `viewer.js`) 동작
+- [x] (확장 E1~E2) web/PDF content[] 정규화 동일화 + 반복 머리말/꼬리말 제거
+- [x] (확장 E3) 무료 용어풀이 `POST /api/terms/lookup` 구현 (유료 API 미사용)
+- [x] (확장 E5) `test_extension_session.py` 확장 케이스 추가 통과
+- [ ] 7/10 M3 이후 구조 변경 없음 (7/11~7/14 버그 수정·검토만)
+- [ ] 발표용 RAG 환각 방지 + 확장(웹/PDF 무설치 폴백) 설명 준비
 
 ---
 
@@ -727,4 +793,8 @@ git commit -m "fix: stabilize content pipeline and improve faithfulness"
 신뢰 출처 기반의 용어풀이가 환각 없이 제공되며,
 집중도 저하 시점에 맞는 퀴즈가 생성되어
 Orchestrator를 통해 사용자의 독해 과정에 기여한다.
+
+(확장) 나아가 크롬에서 읽는 웹페이지와 PDF 어느 쪽에서 들어와도
+동일한 content[] 계약으로 이 파이프라인이 그대로 동작하고,
+단어 용어풀이는 비용 0 경로로 제공된다.
 ```

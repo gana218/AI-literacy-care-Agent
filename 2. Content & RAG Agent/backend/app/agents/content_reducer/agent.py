@@ -137,19 +137,7 @@ def run_content_reducer(state: "ReadingSessionState") -> "ReadingSessionState":
         step_trace["chunk_count"] = len(chunks)
 
         # ─────────────────────────────────────────
-        # Step 3: LLM 텍스트 재구성
-        # ─────────────────────────────────────────
-        try:
-            domain = profile.get("target_domain", "일반")
-            chunks = restructure_text(chunks, profile, difficulty_score, domain)
-        except Exception as e:
-            # 재구성 전체 실패 → 원문 그대로 사용
-            for chunk in chunks:
-                chunk.setdefault("restructured_text", chunk["original_text"])
-            step_trace["restructure_fallback"] = str(e)
-
-        # ─────────────────────────────────────────
-        # Step 4: RAG 용어풀이 주입
+        # Step 3: RAG 용어풀이 주입
         # ─────────────────────────────────────────
         try:
             chunks = inject_rag_terms(chunks)
@@ -157,6 +145,31 @@ def run_content_reducer(state: "ReadingSessionState") -> "ReadingSessionState":
             for chunk in chunks:
                 chunk.setdefault("terms", [])
             step_trace["rag_fallback"] = str(e)
+
+        # ─────────────────────────────────────────
+        # Step 4: LLM 텍스트 재구성
+        # ─────────────────────────────────────────
+        try:
+            domain = profile.get("target_domain", "일반")
+            chunks = restructure_text(chunks, profile, difficulty_score, domain)
+
+            # M2: _meta 필드를 chunk에서 추출하여 step_trace에 보관하고 chunk에서는 제거 (계약 클린 유지)
+            chunks_routing = []
+            for chunk in chunks:
+                if "_meta" in chunk:
+                    meta = chunk.pop("_meta", {})
+                    chunks_routing.append({
+                        "chunk_id": chunk["chunk_id"],
+                        "routing": meta.get("routing"),
+                        "model": meta.get("model")
+                    })
+            if chunks_routing:
+                step_trace["chunks_routing"] = chunks_routing
+        except Exception as e:
+            # 재구성 전체 실패 → 원문 그대로 사용
+            for chunk in chunks:
+                chunk.setdefault("restructured_text", chunk["original_text"])
+            step_trace["restructure_fallback"] = str(e)
 
         # ─────────────────────────────────────────
         # Step 5: 결과 조합

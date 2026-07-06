@@ -1,4 +1,4 @@
-[ARCHITECTURE_2.md](https://github.com/user-attachments/files/29502665/ARCHITECTURE_2.md)# AI 리터러시 케어 에이전트 아키텍처 문서
+# AI 리터러시 케어 에이전트 아키텍처 문서
 
 ## 문서 목적
 
@@ -1037,7 +1037,137 @@ ChatGPT는 텍스트를 요약한다.
 
 ---
 
-## 12. 결론
+## 12. 확장(Chrome) 대응 — 2번 추가 설계 (Content 인입 확장)
+
+> 계획 외 추가 트랙. 상세 배경·전체 아키텍처는 `docs/EXTENSION_DESIGN.md` 정본을 따른다.
+> 이 절은 그중 **2번(Content Reducer·본문추출)이 책임지는 부분만** 상세화한다.
+
+### 12.1 핵심 원칙 — 코어는 그대로, "새 입력원"만 추가
+
+기존 흐름은 Orchestrator가 업로드/붙여넣기 `raw_text`를 2번에 넘겼다. 확장은 여기에
+**크롬에서 읽는 웹페이지(Readability 추출)·PDF(pdf.js 추출)의 본문 `content[]`** 라는
+새 입력원을 더한다. 오케스트레이터 입장에서 이벤트·본문의 **출처는 무관**하므로:
+
+```text
+바뀌지 않는 것 (2번 코어): contracts.py · readability.py · chunker.py
+                           · restructurer.py · rag_engine.py · quiz_generator.py
+새로 더하는 것 (2번 확장): ① content[] 정규화(web=Readability / PDF=pdf.js 동일화)
+                           ② PDF 문단 재구성 로직(줄병합·하이픈·머리말/꼬리말 제거)
+                           ③ 단어 단위 무료 용어풀이(hover lookup)
+                           ④ (선택) 문단별 난이도 태그 → 우선 개입 데이터
+```
+
+즉 2번의 추가 작업은 **"새 입력을 기존 파이프라인 입구 형태(raw_text/문단[])로 정규화"**
+와 **"기존 RAG 용어풀이를 단어 hover 경로로 재사용"** 이 전부다. 계약(TypedDict) 신규는
+`terms/lookup` 하나뿐이며 그마저 기존 `TermDict`를 재사용한다.
+
+### 12.2 인입 계약 — content[] 정규화 (web / PDF 동일 형태)
+
+확장은 `POST /api/session/start`로 **문단 문자열 배열 `content[]`** 를 보낸다(camelCase).
+웹이든 PDF든 백엔드가 받는 형태는 동일해야 한다("웹이든 PDF든 content[] 받으면 끝").
+
+```jsonc
+// POST /api/session/start (확장)
+{
+  "userId": "u_anon_uuid",
+  "source": { "url": "https://...", "title": "...", "type": "web" | "pdf" },
+  "content": ["문단1", "문단2", "..."]   // Readability(web) 또는 pdf.js(PDF) 추출 본문
+}
+// 응답: { sessionId, chunks, simplifiedText, terms, difficultyScore }
+```
+
+백엔드 처리(`extension_session._content_to_raw_text`)는 `content[]`를 `raw_text`로
+정규화한 뒤 **기존 `run_content_reducer`** 를 그대로 태운다:
+
+| 단계 | 규칙 | 이유 |
+|---|---|---|
+| 타입 검증 | `list[str]`이 아니면 422 | 계약 위반 조기 차단 |
+| 공백 정리 | 각 문단 `strip()`, 빈 문단 제거 | 청킹 노이즈 제거 |
+| 반복 라인 제거(강화) | 여러 문단에 반복 등장하는 머리말/꼬리말·쪽번호 후보 제거 | PDF 페이지 헤더가 문단으로 새어드는 것 방지 |
+| 결합 | `"\n\n".join` → `raw_text` | 청커가 문단 경계로 인식 |
+| 최소 길이 | 유효 문단 0개면 422 | 스캔 PDF·빈 페이지 방어 |
+
+> 두 소스를 **동일 `content[]`** 로 맞추는 정규화 규칙이 2번의 책임이다. 웹은
+> Readability가 광고·메뉴를 걷어낸 문단을, PDF는 §12.3 재구성이 문단을 만들어
+> **같은 배열 형태**로 넘긴다. 이 아래로는 청킹/재구성/RAG가 소스를 구분하지 않는다.
+
+### 12.3 PDF 문단 재구성 로직 (getTextContent → 문단[])
+
+**어디서 도는가**: pdf.js는 브라우저에서 렌더하므로 텍스트 추출도 클라이언트
+(`extension/pdf/viewer.js`의 `itemsToParagraphs`)에서 일어난다. **알고리즘의 소유·정의는
+2번**이고, 뷰어 UI 연결은 4번이다. 산출물은 §12.2의 `content[]`와 동일 형태다.
+
+재구성 단계(pdf.js `page.getTextContent().items` → 문단 배열):
+
+```text
+1. 줄 분리   : item.transform[5](y좌표) 변화 > 임계(≈3px)이거나 item.hasEOL → 줄 종료
+2. 문단 분리 : 빈 줄(공백 라인) 경계에서 문단 분리
+3. 하이픈 병합: 앞 줄이 '-'로 끝나면 다음 줄과 붙여 한 단어로 복원 (예: "레이턴-\n시" → "레이턴시")
+4. 머리말/꼬리말 제거(추가 작업): 여러 페이지에 '반복 등장'하는 짧은 라인
+                                  (문서 제목·저자·쪽번호 패턴)을 빈도 기준으로 후보 제거
+5. 공백 문단 필터: 길이 0 문단 제거
+```
+
+- 1~3단계는 구현 완료(`viewer.js`). **4단계(반복 라인 제거)가 2번의 남은 추가 작업**으로,
+  전 페이지 라인 빈도표를 만들어 `count >= ceil(numPages * 0.6)` 이고 길이가 짧은(예 ≤ 40자)
+  라인을 머리말/꼬리말 후보로 간주해 제거한다(본문 오탐 방지를 위해 길이·빈도 이중 조건).
+- **스캔(이미지) PDF**: 텍스트 레이어가 없어 추출 결과가 비면 안내 문단 하나
+  (`"(빈 문서 또는 스캔 PDF — 텍스트 레이어 없음. OCR은 후속.)"`)로 폴백한다. OCR(Tesseract.js,
+  무료)은 후속 트랙(EXTENSION_DESIGN §11).
+
+### 12.4 용어풀이 무료 경로 (단어 hover → 뜻)
+
+웹/PDF 공통으로 사용자가 단어를 hover/click하면 그 단어의 뜻을 툴팁으로 보여준다. 이는
+기존 문단 단위 `terms[]`(세션 시작 시 RAG가 채움)와 별개로 **임의 단어 즉석 조회**가 필요하다.
+
+계약 (신규, 단 반환 타입은 기존 `TermDict` 재사용):
+
+```jsonc
+// POST /api/terms/lookup
+{ "word": "레이턴시", "sessionId": "s_...", "context": "...(선택) 문단 텍스트" }
+// 응답 (TermDict)
+{ "term": "레이턴시", "definition": "...", "source": "도메인 용어집 IT 편",
+  "faithfulness_score": 0.94, "chunk_id": "" }
+// 미발견 시: { "term": "레이턴시", "definition": "", "source": "not_found", "chunk_id": "" }
+```
+
+**무료 경로만** 사용한다(유료 사전/번역 API 신규 도입 금지, EXTENSION_DESIGN §11):
+
+```text
+lookup 우선순위 (모두 비용 0)
+  1) 세션 terms[] 캐시 : 이미 RAG가 만든 풀이가 있으면 즉시 반환 (추가 호출 0)
+  2) 로컬 용어집       : pgvector/JSON 용어집에서 정확·유사 매칭 (기존 rag_engine 재사용)
+  3) RAG 생성 경로     : 위에서 못 찾고 근거(context)가 있으면 기존 inject 경로로 1건 생성
+  4) 미발견            : source="not_found" 반환 → 프론트는 툴팁 대신 조용히 무시
+```
+
+이 경로는 **기존 `rag_engine`을 그대로 재사용**하므로 새로 과금되는 요소가 없다. 데모/개발은
+stub·로컬 사전으로 무료 동작하고, 유료 LLM 호출은 기존 오케스트레이터 정책을 따른다.
+
+### 12.5 (선택) 문단별 난이도 태그 → 우선 개입
+
+각 `ChunkDict.difficulty`(0~100)는 이미 존재한다. 확장에서는 **문단=chunk 매핑**을 이용해
+"어려운 문단을 우선 개입(넛지·툴팁 강조)" 하도록 3번에 우선순위 데이터를 제공할 수 있다.
+계약 변경 없이 기존 `difficulty` 필드를 소비하는 방식이므로 여력이 있을 때만 붙인다.
+
+### 12.6 2번 관점 추가 산출물 (파일/모듈)
+
+| 산출물 | 위치 | 상태 | 비고 |
+|---|---|---|---|
+| PDF 문단 재구성 알고리즘 | `extension/pdf/viewer.js` `itemsToParagraphs` | 줄/하이픈까지 완료, 머리말·꼬리말 제거 추가 | 알고리즘 소유=2번, UI 연결=4번 |
+| content[] 정규화(반복라인 제거) | `backend/.../extension_session.py` `_content_to_raw_text` | strip/join 완료, 반복라인 제거 추가 | web·PDF 동일화 |
+| 단어 용어풀이 lookup | `backend/.../api/terms.py`(신규) + `rag_engine` 재사용 | 추가 | 무료 경로만 |
+| (선택) 문단 난이도 태그 | 기존 `chunker.difficulty` 소비 | 선택 | 계약 변경 없음 |
+
+### 12.7 계약 불변 원칙 재확인
+
+- `contracts.py`의 `TermDict`/`ChunkDict`/`ContentReducerResponse`는 **변경하지 않는다.**
+- 신규 계약은 `POST /api/terms/lookup`(무료 경로) **하나뿐**이며 반환은 기존 `TermDict`다.
+- 따라서 1·3·4·5번 팀원의 기존 연결은 이 추가로 **깨지지 않는다.**
+
+---
+
+## 13. 결론
 
 2번 역할은 최종 앱 전체를 혼자 만드는 역할이 아니다.
 

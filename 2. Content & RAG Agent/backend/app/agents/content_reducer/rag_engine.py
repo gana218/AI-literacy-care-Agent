@@ -69,6 +69,28 @@ def _load_term_dictionary() -> list[dict]:
 
 
 _TERM_DICT: list[dict] = _load_term_dictionary()
+_TERM_VECS: list[list[float]] | None = None  # 용어집 임베딩 캐시 (최초 1회만 계산)
+
+
+def _get_term_embeddings(model) -> list[list[float]]:
+    """용어집 후보 전체를 batch encoding하여 캐시하고 반환한다."""
+    global _TERM_VECS
+    if _TERM_VECS is None:
+        try:
+            candidates = []
+            for entry in _TERM_DICT:
+                candidate = (
+                    f"{entry['term']} "
+                    + " ".join(entry.get("aliases", []))
+                    + f" {entry['definition']}"
+                )
+                candidates.append(candidate)
+            # Batch encode
+            _TERM_VECS = model.encode(candidates).tolist()
+        except Exception as e:
+            print(f"[rag_engine] 용어집 배치 임베딩 생성 실패: {e}")
+            _TERM_VECS = []
+    return _TERM_VECS
 
 
 # ---------------------------------------------------------------------------
@@ -289,15 +311,21 @@ def _find_terms(text: str, top_k: int = 5) -> list[tuple[dict, float]]:
     if model is not None:
         try:
             text_vec = model.encode(text).tolist()
-            for entry in _TERM_DICT:
-                candidate = (
-                    f"{entry['term']} "
-                    + " ".join(entry.get("aliases", []))
-                    + f" {entry['definition']}"
-                )
-                cand_vec = model.encode(candidate).tolist()
-                score = _cosine_similarity(text_vec, cand_vec)
-                results.append((entry, score))
+            cand_vecs = _get_term_embeddings(model)
+            if cand_vecs and len(cand_vecs) == len(_TERM_DICT):
+                for i, entry in enumerate(_TERM_DICT):
+                    score = _cosine_similarity(text_vec, cand_vecs[i])
+                    results.append((entry, score))
+            else:
+                for entry in _TERM_DICT:
+                    candidate = (
+                        f"{entry['term']} "
+                        + " ".join(entry.get("aliases", []))
+                        + f" {entry['definition']}"
+                    )
+                    cand_vec = model.encode(candidate).tolist()
+                    score = _cosine_similarity(text_vec, cand_vec)
+                    results.append((entry, score))
         except Exception:
             model = None  # 실패 시 키워드 방식으로 폴백
 
@@ -365,7 +393,8 @@ def inject_rag_terms(chunks: list[ChunkDict]) -> list[ChunkDict]:
                 seen.add(term_text)
 
                 definition = entry["definition"]
-                faith = _faithfulness_score(definition, definition)  # 1.0 (직접 인용)
+                # 2번 RAG는 LLM 생성이 아닌 사전 직접 인용(검색) 방식이므로 faithfulness_score = 1.0 (환각률 0% 보장)
+                faith = 1.0  # 직접 인용
 
                 # faithfulness 기준 미달 시 trace 경고 (5번 QA용)
                 if faith < _FAITHFULNESS_THRESHOLD:
@@ -428,3 +457,72 @@ def get_faithfulness_summary(terms: list[TermDict]) -> dict:
         "below_threshold": below,
         "threshold": _FAITHFULNESS_THRESHOLD,
     }
+
+
+def lookup_term(word: str, context: str | None = None) -> TermDict:
+    """
+    단어 단건에 대한 용어 뜻을 조회한다. (확장 프로그램 hover lookup용 무료 경로)
+    
+    우선순위:
+      1. 로컬 용어집에서 용어/별칭(alias) 대소문자 구분 없이 완벽 매칭 시도
+      2. sentence-transformers를 활용한 임베딩 코사인 유사도 검색 (유사도 >= 0.3)
+      3. 미발견 시 source="not_found" 반환 (프론트가 조용히 무시)
+    """
+    word_clean = word.strip()
+    word_lower = word_clean.lower()
+    
+    if not _TERM_DICT:
+        return TermDict(
+            term=word_clean,
+            definition="",
+            source="not_found",
+            faithfulness_score=0.0,
+            chunk_id=""
+        )
+
+    # 1. 완벽 매칭 (용어 또는 별칭)
+    for entry in _TERM_DICT:
+        term_val = entry.get("term", "")
+        aliases = [a.lower() for a in entry.get("aliases", [])]
+        if term_val.lower() == word_lower or word_lower in aliases:
+            return TermDict(
+                term=term_val,
+                definition=entry.get("definition", ""),
+                source=entry.get("source", "로컬 사전"),
+                faithfulness_score=1.0,
+                chunk_id=""
+            )
+
+    # 2. 임베딩 유사도 매칭 시도 (텍스트 레이어가 있는 경우)
+    model = _get_embedding_model()
+    if model is not None:
+        try:
+            query_vec = model.encode(word_clean).tolist()
+            cand_vecs = _get_term_embeddings(model)
+            if cand_vecs and len(cand_vecs) == len(_TERM_DICT):
+                best_score = -1.0
+                best_entry = None
+                for i, entry in enumerate(_TERM_DICT):
+                    score = _cosine_similarity(query_vec, cand_vecs[i])
+                    if score > best_score:
+                        best_score = score
+                        best_entry = entry
+                if best_entry and best_score >= 0.3:
+                    return TermDict(
+                        term=best_entry["term"],
+                        definition=best_entry.get("definition", ""),
+                        source=best_entry.get("source", "RAG 유사 매칭"),
+                        faithfulness_score=round(best_score, 4),
+                        chunk_id=""
+                    )
+        except Exception as e:
+            print(f"[rag_engine] 단어 lookup 임베딩 유사도 검색 실패: {e}")
+
+    # 3. 미발견 폴백
+    return TermDict(
+        term=word_clean,
+        definition="",
+        source="not_found",
+        faithfulness_score=0.0,
+        chunk_id=""
+    )

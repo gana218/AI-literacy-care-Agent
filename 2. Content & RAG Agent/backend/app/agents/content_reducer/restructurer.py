@@ -19,9 +19,11 @@ Claude API를 호출하여 쉬운 문장으로 변환한다.
 """
 from __future__ import annotations
 
+import json
 import os
 import re
 import time
+from pathlib import Path
 
 from backend.app.agents.content_reducer.contracts import ChunkDict
 from backend.app.agents.content_reducer.prompts import (
@@ -37,18 +39,36 @@ from backend.app.agents.content_reducer.router import get_routing_reason, select
 
 
 # ---------------------------------------------------------------------------
-# Anthropic 클라이언트 초기화
+# 고품질 데모 폴백 데이터 로드
+# ---------------------------------------------------------------------------
+
+def _load_fallback_data() -> dict:
+    try:
+        root = Path(__file__).resolve().parents[4]
+        path = root / "data" / "demo_fallback_data.json"
+        if path.exists():
+            with open(path, encoding="utf-8") as f:
+                return json.load(f)
+    except Exception:
+        pass
+    return {}
+
+_FALLBACK_DATA = _load_fallback_data()
+
+
+# ---------------------------------------------------------------------------
+# Gemini 클라이언트 초기화 (Google AI Studio 무료)
 # ---------------------------------------------------------------------------
 
 def _get_client():
-    """Anthropic 클라이언트를 반환한다. 키 없거나 패키지 없으면 None."""
+    """Gemini 클라이언트를 반환한다. 키가 없거나 패키지가 없으면 None."""
     try:
-        import anthropic
+        from google import genai
 
-        api_key = os.getenv("ANTHROPIC_API_KEY", "")
+        api_key = os.getenv("GEMINI_API_KEY", "")
         if not api_key or api_key.startswith("your_"):
             return None
-        return anthropic.Anthropic(api_key=api_key)
+        return genai.Client(api_key=api_key)
     except ImportError:
         return None
 
@@ -68,8 +88,16 @@ _LEVEL_LABELS = {
 
 def _demo_restructure(text: str, level: int) -> str:
     """API 없이 동작하는 데모용 재구성."""
+    # 1. 고품질 데모 캐시 데이터 매칭 시도
+    if _FALLBACK_DATA and "chunks" in _FALLBACK_DATA:
+        normalized_text = text.replace(" ", "").replace("\n", "")
+        for entry in _FALLBACK_DATA["chunks"]:
+            ref_text = entry["original_text"].replace(" ", "").replace("\n", "")
+            if normalized_text in ref_text or ref_text in normalized_text:
+                return entry["restructured_text"]
+
+    # 2. 매칭 실패 시 단순 시뮬레이션
     label = _LEVEL_LABELS.get(level, "중급")
-    # 긴 문장을 단순히 분리하는 형태로 시뮬레이션
     sentences = re.split(r"(?<=[다요했됩습])[.]\s*|(?<=[.!?])\s+", text)
     simplified = " ".join(s.strip() for s in sentences if s.strip())
     return f"[{label} 수준 재구성] {simplified}"
@@ -88,21 +116,25 @@ def _call_llm(
     term_count: int,
 ) -> tuple[str, str]:
     """
-    Claude API를 호출하여 텍스트를 재구성한다.
+    Gemini API를 호출하여 텍스트를 재구성한다.
 
     Returns:
         (restructured_text, model_used)
     """
-    model = select_model(difficulty, term_count)
+    from google.genai import types
+
+    # 1번의 딜리버리 플랜에 따라 gemini-2.0-flash 사용
+    model = "gemini-2.0-flash"
     prompt = build_restructure_prompt(chunk_text, level, domain)
 
-    response = client.messages.create(
+    response = client.models.generate_content(
         model=model,
-        max_tokens=1024,
-        system=RESTRUCTURE_SYSTEM_PROMPT,
-        messages=[{"role": "user", "content": prompt}],
+        contents=prompt,
+        config=types.GenerateContentConfig(
+            system_instruction=RESTRUCTURE_SYSTEM_PROMPT,
+        ),
     )
-    result = response.content[0].text.strip()
+    result = response.text.strip()
     return result, model
 
 

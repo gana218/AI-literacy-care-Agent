@@ -67,7 +67,7 @@ pip install -r requirements.txt
 
 # 환경 변수 설정
 copy .env.example .env
-# .env 파일을 열어 ANTHROPIC_API_KEY 입력
+# .env 파일을 열어 GEMINI_API_KEY 입력 (비용 0원 무료 티어 활용)
 ```
 
 ### 2. 데모 모드로 실행 (API 키 없이)
@@ -77,10 +77,10 @@ copy .env.example .env
 python -m backend.app.agents.content_reducer.agent
 ```
 
-### 3. 실제 모드로 실행
+### 3. 실제 모드로 실행 (Gemini 기반)
 
 ```bash
-# .env에서 ANTHROPIC_API_KEY 설정 후
+# .env에서 GEMINI_API_KEY 설정 후
 python -m backend.app.agents.content_reducer.agent
 ```
 
@@ -89,12 +89,15 @@ python -m backend.app.agents.content_reducer.agent
 ## 테스트 실행
 
 ```bash
-# 전체 테스트
+# 전체 테스트 (총 91개 테스트)
 python -m pytest backend/app/tests/ -v
 
 # 단위 테스트만
 python -m pytest backend/app/tests/test_readability.py -v
 python -m pytest backend/app/tests/test_chunker.py -v
+
+# 확장 세션 테스트만
+python -m pytest backend/app/tests/test_extension_session.py -v
 
 # E2E 테스트
 python -m pytest backend/app/tests/test_content_e2e.py -v
@@ -108,33 +111,28 @@ python -m pytest backend/app/tests/test_content_e2e.py -v
 |---|---|
 | **Stub First** | 실제 LLM 없이 1번 Orchestrator E2E 흐름을 먼저 지원 |
 | **RAG 범위 제한** | RAG는 용어풀이에만 적용. 요약/재구성에 미적용 |
-| **환각 차단** | 모든 용어풀이는 신뢰 출처 데이터 기반 (faithfulness_score 포함) |
+| **환각 차단** | 모든 용어풀이는 신뢰 출처 데이터 기반 (직접 인용 방식, faithfulness_score=1.0) |
 | **Fallback 보장** | 각 서브모듈 실패 시 기본값 반환으로 데모 유지 |
 | **chunk_id 안정성** | 같은 문서는 항상 같은 chunk_id 생성 |
+| **비용 0원 원칙** | Google AI Studio의 무료 `gemini-2.0-flash` 모델을 사용하여 요금 차단 |
 
 ---
 
-## 팀원 연결 계약 요약
+## 제공 API 엔드포인트 명세
 
-### 1번 Orchestrator에서 받는 것
-```json
-{
-  "session_id": "s_001",
-  "raw_text": "원문 텍스트...",
-  "user_literacy_level": 3,
-  "profile": { "reading_level": "intermediate" }
-}
-```
+### 1. 콘텐츠 가독성 요약 및 가공
+* **`POST /api/content-reducer/reduce`** (Orchestrator용 표준 경로)
+* **`POST /api/session/start`** (크롬 확장 프로그램 / PDF 전용 인입 경로)
+  * 문단 정규화 및 페이지 반복 머리말/꼬리말 제거 알고리즘 탑재
+  * Frontend 호환성을 지원하기 위해 **camelCase 및 snake_case 이중 필드 호환 매핑** 반환
 
-### 1번 Orchestrator에 돌려주는 것
-```json
-{
-  "session_id": "s_001",
-  "difficulty_score": 68.5,
-  "chunks": [{ "chunk_id": "chunk_doc001_01", "original_text": "...", "restructured_text": "..." }],
-  "terms": [{ "term": "레이턴시", "definition": "...", "source": "..." }]
-}
-```
+### 2. 특정 문맥 기반 독해 퀴즈 생성
+* **`POST /api/content-reducer/quiz`**
+  * 청크의 재구성 문맥을 기반으로 4지선다형 퀴즈 및 해설 생성 (실패 시 Fallback 퀴즈 작동)
+
+### 3. 실시간 Hover 단어 무료 조회
+* **`POST /api/terms/lookup`**
+  * 크롬 확장 프로그램에서 hover된 단어의 용어풀이를 비용 없이 조회 (정확 매칭 + 임베딩 코사인 유사도)
 
 > 전체 계약 명세: [`docs/CONTENT_AGENT_CONTRACT.md`](docs/CONTENT_AGENT_CONTRACT.md)
 
@@ -145,7 +143,8 @@ python -m pytest backend/app/tests/test_content_e2e.py -v
 | Milestone | 날짜 | 상태 |
 |---|---|---|
 | M0 | 6/22 | ✅ Stub E2E 및 계약 초안 완료 |
-| M1 | 6/29 | 🔄 핵심 파이프라인 구현 중 |
-| M2 | 7/6  | ⏳ 퀴즈 생성 및 통합 |
-| M3 | 7/10 | ⏳ 기능 동결 |
-| M4 | 7/14 | ⏳ 제출본 점검 |
+| M1 | 6/29 | ✅ 핵심 파이프라인(가독성·청킹·RAG·재구성) 완료 |
+| M2 | 7/6  | ✅ 퀴즈 생성 및 Orchestrator 통합 완료 |
+| **ME** | 7/6~7/9 | ✅ 크롬 확장 및 PDF 대응 인입/Header/Footer 제거/Lookup 완료 |
+| M3 | 7/10 | ✅ 기능 동결 및 Gemini API 완전 마이그레이션 완료 |
+| M4 | 7/14 | ⏳ 최종 제출본 점검 |

@@ -91,24 +91,22 @@ class TestGenerateQuiz:
         mock_client = MagicMock()
         mock_get_client.return_value = mock_client
 
-        # Mock response from Claude
-        mock_message = MagicMock()
-        mock_message.content = [
-            MagicMock(text="""
-            {
-              "question": "RAG의 핵심 목적은 무엇인가요?",
-              "options": [
-                "1. 임의 데이터 가공",
-                "2. 환각(Hallucination) 감소 및 최신 정보 검색",
-                "3. CPU 성능 개선",
-                "4. 메모리 용량 확보"
-              ],
-              "correct_option": 2,
-              "explanation": "RAG는 외부 데이터베이스 검색을 결합해 AI의 환각을 줄여줍니다."
-            }
-            """)
-        ]
-        mock_client.messages.create.return_value = mock_message
+        # Mock response from Gemini
+        mock_response = MagicMock()
+        mock_response.text = """
+        {
+          "question": "RAG의 핵심 목적은 무엇인가요?",
+          "options": [
+            "1. 임의 데이터 가공",
+            "2. 환각(Hallucination) 감소 및 최신 정보 검색",
+            "3. CPU 성능 개선",
+            "4. 메모리 용량 확보"
+          ],
+          "correct_option": 2,
+          "explanation": "RAG는 외부 데이터베이스 검색을 결합해 AI의 환각을 줄여줍니다."
+        }
+        """
+        mock_client.models.generate_content.return_value = mock_response
 
         # 환경 모드를 real로 강제
         with patch.dict("os.environ", {"CONTENT_REDUCER_MODE": "real", "DEMO_MODE": "false"}):
@@ -125,18 +123,16 @@ class TestGenerateQuiz:
         mock_get_client.return_value = mock_client
 
         # options 개수가 2개뿐인 규격 미달 응답
-        mock_message = MagicMock()
-        mock_message.content = [
-            MagicMock(text="""
-            {
-              "question": "문제",
-              "options": ["1. A", "2. B"],
-              "correct_option": 1,
-              "explanation": "설명"
-            }
-            """)
-        ]
-        mock_client.messages.create.return_value = mock_message
+        mock_response = MagicMock()
+        mock_response.text = """
+        {
+          "question": "문제",
+          "options": ["1. A", "2. B"],
+          "correct_option": 1,
+          "explanation": "설명"
+        }
+        """
+        mock_client.models.generate_content.return_value = mock_response
 
         with patch.dict("os.environ", {"CONTENT_REDUCER_MODE": "real", "DEMO_MODE": "false"}):
             quiz = generate_quiz("chunk_04", "본문 데이터")

@@ -38,7 +38,7 @@ def _try_langchain_chunker(text: str) -> list[str] | None:
 
         splitter = RecursiveCharacterTextSplitter(
             chunk_size=MAX_CHUNK_CHARS,
-            chunk_overlap=40,
+            chunk_overlap=0,  # overlap을 0으로 설정하여 청크 순차성을 확보
             separators=["\n\n", "\n", ". ", "다. ", "요. ", " ", ""],
         )
         result = splitter.split_text(text)
@@ -134,9 +134,16 @@ def semantic_chunk(text: str, document_id: str) -> list[ChunkDict]:
         # 원문에서 청크의 위치 탐색
         start = text.find(chunk_text, cursor)
         if start == -1:
-            start = cursor
-        end = start + len(chunk_text)
-        cursor = end
+            start = text.find(chunk_text)  # cursor 기준 탐색 실패 시 전체 탐색 시도
+        
+        if start == -1:
+            # 완전히 매칭되지 않는 엣지케이스 대응
+            start_pos = -1
+            end_pos = -1
+        else:
+            start_pos = start
+            end_pos = start + len(chunk_text)
+            cursor = end_pos
 
         chunk_id = f"chunk_{document_id}_{idx:02d}"
         difficulty = float(max(0.0, min(100.0, 100.0 - analyze_readability(chunk_text))))
@@ -145,8 +152,8 @@ def semantic_chunk(text: str, document_id: str) -> list[ChunkDict]:
             ChunkDict(
                 chunk_id=chunk_id,
                 original_text=chunk_text,
-                char_start=start,
-                char_end=end,
+                char_start=start_pos,
+                char_end=end_pos,
                 difficulty=round(difficulty, 2),
             )
         )

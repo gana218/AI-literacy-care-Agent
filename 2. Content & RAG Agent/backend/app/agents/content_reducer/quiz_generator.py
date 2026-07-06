@@ -19,27 +19,38 @@ import re
 from backend.app.agents.content_reducer.contracts import QuizDict, QuizGenerationRequest
 from backend.app.agents.content_reducer.fallbacks import fallback_quiz
 from backend.app.agents.content_reducer.prompts import QUIZ_SYSTEM_PROMPT, build_quiz_prompt
+from pathlib import Path
 
 # ---------------------------------------------------------------------------
-# 환경 설정
+# 고품질 데모 폴백 데이터 로드
 # ---------------------------------------------------------------------------
 
-_MODE = os.getenv("CONTENT_REDUCER_MODE", "real").lower()
-_DEMO_MODE = os.getenv("DEMO_MODE", "false").lower() == "true"
+def _load_fallback_data() -> dict:
+    try:
+        root = Path(__file__).resolve().parents[4]
+        path = root / "data" / "demo_fallback_data.json"
+        if path.exists():
+            with open(path, encoding="utf-8") as f:
+                return json.load(f)
+    except Exception:
+        pass
+    return {}
+
+_FALLBACK_DATA = _load_fallback_data()
 
 
 # ---------------------------------------------------------------------------
-# Anthropic 클라이언트 로더
+# Gemini 클라이언트 로더 (Google AI Studio 무료)
 # ---------------------------------------------------------------------------
 
 def _get_client():
-    """Anthropic 클라이언트를 반환한다."""
+    """Gemini 클라이언트를 반환한다. 키가 없거나 패키지가 없으면 None."""
     try:
-        import anthropic
-        api_key = os.getenv("ANTHROPIC_API_KEY", "")
+        from google import genai
+        api_key = os.getenv("GEMINI_API_KEY", "")
         if not api_key or api_key.startswith("your_"):
             return None
-        return anthropic.Anthropic(api_key=api_key)
+        return genai.Client(api_key=api_key)
     except ImportError:
         return None
 
@@ -88,6 +99,26 @@ def validate_quiz(quiz: dict) -> bool:
 
 def _generate_demo_quiz(chunk_id: str, context: str) -> QuizDict:
     """API 호출 없이 본문 키워드를 이용해 적절한 데모용 퀴즈를 자동 생성한다."""
+    # 1. 고품질 데모 캐시 데이터 매칭 시도
+    if _FALLBACK_DATA and "chunks" in _FALLBACK_DATA:
+        # chunk_id 매칭 또는 context의 매칭 시도
+        normalized_context = context.replace(" ", "").replace("\n", "")
+        for entry in _FALLBACK_DATA["chunks"]:
+            ref_text = entry["original_text"].replace(" ", "").replace("\n", "")
+            ref_restructured = entry["restructured_text"].replace(" ", "").replace("\n", "")
+            # chunk_id가 똑같거나 본문 텍스트가 겹치는 경우
+            if entry["chunk_id"] == chunk_id or normalized_context in ref_text or normalized_context in ref_restructured:
+                quiz_data = entry.get("quiz")
+                if quiz_data:
+                    return QuizDict(
+                        chunk_id=chunk_id,
+                        question=quiz_data["question"],
+                        options=quiz_data["options"],
+                        correct_option=quiz_data["correct_option"],
+                        explanation=quiz_data["explanation"]
+                    )
+
+    # 2. 매칭 실패 시 단순 시뮬레이션
     # 본문에서 핵심 키워드 검색 시도
     keywords = ["인공지능", "LLM", "RAG", "레이턴시", "메타인지", "문해력", "인지부하", "임베딩"]
     found = "본문 내용"
@@ -129,7 +160,9 @@ def generate_quiz(chunk_id: str, context: str) -> QuizDict:
         return fallback_quiz(chunk_id)
 
     # 1. Stub 또는 Demo 모드일 경우 API 없이 시뮬레이션
-    if _MODE == "stub" or _DEMO_MODE:
+    mode = os.getenv("CONTENT_REDUCER_MODE", "real").lower()
+    demo_mode = os.getenv("DEMO_MODE", "false").lower() == "true"
+    if mode == "stub" or demo_mode:
         return _generate_demo_quiz(chunk_id, context)
 
     # 2. Anthropic 클라이언트 확인
@@ -139,18 +172,21 @@ def generate_quiz(chunk_id: str, context: str) -> QuizDict:
         return _generate_demo_quiz(chunk_id, context)
 
     try:
-        # 퀴즈 생성에는 Haiku 모델을 경량으로 사용 (프롬프트 비용 및 레이턴시 단축)
-        model = os.getenv("QUIZ_GENERATOR_MODEL", "claude-haiku-4-5")
+        from google.genai import types
+
+        # 퀴즈 생성에는 gemini-2.0-flash 모델을 무료로 사용
+        model = "gemini-2.0-flash"
         prompt = build_quiz_prompt(context)
 
-        response = client.messages.create(
+        response = client.models.generate_content(
             model=model,
-            max_tokens=1024,
-            system=QUIZ_SYSTEM_PROMPT,
-            messages=[{"role": "user", "content": prompt}],
+            contents=prompt,
+            config=types.GenerateContentConfig(
+                system_instruction=QUIZ_SYSTEM_PROMPT,
+            ),
         )
 
-        raw_content = response.content[0].text.strip()
+        raw_content = response.text.strip()
         
         # JSON 블록 추출 파싱 ({ 로 시작해서 } 로 끝나는 부분 매칭)
         json_match = re.search(r"\{.*\}", raw_content, re.DOTALL)
