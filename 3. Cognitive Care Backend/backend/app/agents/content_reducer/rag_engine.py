@@ -29,6 +29,95 @@ from pathlib import Path
 
 from backend.app.agents.content_reducer.contracts import ChunkDict, TermDict
 
+
+# ---------------------------------------------------------------------------
+# 한국어 조사 제거 전처리
+# ---------------------------------------------------------------------------
+
+# 자주 붙는 한국어 조사/어미 목록 (긴 것 먼저 → 짧은 것 순으로 정렬해야 정확히 제거됨)
+_KO_PARTICLES = [
+    "에서의", "으로의", "에게의",
+    "이라는", "라는", "이라고", "라고",
+    "이지만", "지만", "이어서", "어서",
+    "에서", "에게", "에도", "에만", "에서",
+    "으로서", "로서", "으로부터", "로부터",
+    "으로", "로", "으로도", "로도",
+    "이었다", "였다", "이다",
+    "이지", "이기",
+    "에서", "에서도", "에서만",
+    "까지", "부터", "마다",
+    "이며", "이고", "이나",
+    "이란", "이라",
+    "들의", "들을", "들이", "들은", "들에", "들도",
+    "하여", "해서", "하고",
+    "이라면", "라면",
+    "에는", "에도", "에만",
+    "을통해", "를통해",
+    "이란",
+    "들",
+    "의", "을", "를", "이", "가", "은", "는", "과", "와",
+    "도", "만", "도", "조차", "마저",
+]
+
+
+def _strip_particles(word: str) -> str:
+    """한국어 단어에서 조사/어미를 제거하여 명사 원형을 반환한다."""
+    stripped = word.strip()
+    # 특수문자, 문장부호 제거
+    stripped = re.sub(r'[^\w\s가-힣a-zA-Z0-9]', '', stripped).strip()
+    # 조사 제거 (긴 조사부터 시도)
+    for particle in _KO_PARTICLES:
+        if stripped.endswith(particle) and len(stripped) > len(particle) + 1:
+            stripped = stripped[:-len(particle)]
+            break
+    return stripped.strip()
+
+
+# ---------------------------------------------------------------------------
+# Gemini LLM 실시간 유추 (Step 4 fallback)
+# ---------------------------------------------------------------------------
+
+def _query_gemini_llm(word: str, context: str | None = None) -> dict | None:
+    """
+    Gemini 2.0 Flash를 활용해 단어의 의미를 실시간으로 유추한다.
+    context(문장)가 있으면 동음이의어를 구분하여 더 정확한 뜻풀이를 제공한다.
+    """
+    api_key = os.getenv("GEMINI_API_KEY", "")
+    if not api_key:
+        return None
+
+    try:
+        import google.generativeai as genai  # type: ignore
+        genai.configure(api_key=api_key)
+        model = genai.GenerativeModel("gemini-2.0-flash")
+
+        if context:
+            prompt = (
+                f"다음 문장에서 '{word}'라는 단어의 뜻을 50자 이내로 쉽게 설명해 주세요. "
+                f"전문 용어라면 비전문가도 이해할 수 있도록 친절하게 설명하세요.\n"
+                f"문장: {context}\n"
+                f"설명만 간결하게 답변하고 '~입니다'로 마무리하세요."
+            )
+        else:
+            prompt = (
+                f"'{word}'의 뜻을 50자 이내로 쉽고 친절하게 설명해 주세요. "
+                f"설명만 간결하게 답변하고 '~입니다'로 마무리하세요."
+            )
+
+        response = model.generate_content(prompt)
+        definition = response.text.strip()
+
+        if definition:
+            return {
+                "term": word,
+                "definition": definition[:120],  # 최대 120자 제한
+                "source": "LLM 실시간 유추"
+            }
+    except Exception as e:
+        print(f"[rag_engine] Gemini LLM 유추 실패: {e}")
+
+    return None
+
 # ---------------------------------------------------------------------------
 # 설정
 # ---------------------------------------------------------------------------
@@ -514,10 +603,114 @@ def lookup_term(word: str, context: str | None = None) -> TermDict:
     
     우선순위:
       1. 로컬 용어집에서 용어/별칭(alias) 대소문자 구분 없이 완벽 매칭 시도
+         → 조사 제거 전처리 후 재시도 (예: '방지법을' → '방지법')
       2. 국립국어원 우리말샘 오픈 API 조회 (WOORIMAL_API_KEY 설정 시 작동)
       3. sentence-transformers를 활용한 임베딩 코사인 유사도 검색 (유사도 >= 0.3)
-      4. 미발견 시 source="not_found" 반환 (프론트가 조용히 무시)
+      4. Gemini 2.0 Flash LLM 실시간 유추 (GEMINI_API_KEY 설정 시 작동)
+      5. 미발견 시 source="not_found" 반환 (프론트가 조용히 무시)
     """
+    word_clean = word.strip()
+    # 특수문자/문장부호 제거
+    word_clean = re.sub(r'[^\w\s가-힣a-zA-Z0-9]', '', word_clean).strip()
+    word_lower = word_clean.lower()
+    
+    # 조사 제거 원형 단어도 미리 계산
+    word_stripped = _strip_particles(word_clean)
+    word_stripped_lower = word_stripped.lower()
+
+    if not _TERM_DICT:
+        # 용어집이 없어도 LLM으로 시도
+        llm_res = _query_gemini_llm(word_clean, context)
+        if llm_res:
+            return TermDict(
+                term=llm_res["term"],
+                definition=llm_res["definition"],
+                source=llm_res["source"],
+                faithfulness_score=0.8,
+                chunk_id=""
+            )
+        return TermDict(
+            term=word_clean,
+            definition="",
+            source="not_found",
+            faithfulness_score=0.0,
+            chunk_id=""
+        )
+
+    # 1. 완벽 매칭 (용어 또는 별칭) — 원본 및 조사 제거 원형 모두 시도
+    for search_word, search_lower in [
+        (word_clean, word_lower),
+        (word_stripped, word_stripped_lower),
+    ]:
+        for entry in _TERM_DICT:
+            term_val = entry.get("term", "")
+            aliases = [a.lower() for a in entry.get("aliases", [])]
+            if term_val.lower() == search_lower or search_lower in aliases:
+                return TermDict(
+                    term=term_val,
+                    definition=entry.get("definition", ""),
+                    source=entry.get("source", "로컬 사전"),
+                    faithfulness_score=1.0,
+                    chunk_id=""
+                )
+
+    # 2. 우리말샘 오픈 API 조회 시도 (원본 → 조사 제거 순)
+    for search_word in [word_clean, word_stripped]:
+        api_res = _query_woorimalsem_api(search_word)
+        if api_res:
+            return TermDict(
+                term=api_res["term"],
+                definition=api_res["definition"],
+                source=api_res["source"],
+                faithfulness_score=1.0,
+                chunk_id=""
+            )
+
+    # 3. 임베딩 유사도 매칭 시도
+    model = _get_embedding_model()
+    if model is not None:
+        try:
+            query_vec = model.encode(word_clean).tolist()
+            cand_vecs = _get_term_embeddings(model)
+            if cand_vecs and len(cand_vecs) == len(_TERM_DICT):
+                best_score = -1.0
+                best_entry = None
+                for i, entry in enumerate(_TERM_DICT):
+                    score = _cosine_similarity(query_vec, cand_vecs[i])
+                    if score > best_score:
+                        best_score = score
+                        best_entry = entry
+                if best_entry and best_score >= 0.3:
+                    return TermDict(
+                        term=best_entry["term"],
+                        definition=best_entry.get("definition", ""),
+                        source=best_entry.get("source", "RAG 유사 매칭"),
+                        faithfulness_score=round(best_score, 4),
+                        chunk_id=""
+                    )
+        except Exception as e:
+            print(f"[rag_engine] 단어 lookup 임베딩 유사도 검색 실패: {e}")
+
+    # 4. Gemini LLM 실시간 유추 (GEMINI_API_KEY 설정 시)
+    llm_res = _query_gemini_llm(word_stripped or word_clean, context)
+    if llm_res:
+        return TermDict(
+            term=llm_res["term"],
+            definition=llm_res["definition"],
+            source=llm_res["source"],
+            faithfulness_score=0.8,
+            chunk_id=""
+        )
+
+    # 5. 미발견 폴백
+    return TermDict(
+        term=word_stripped or word_clean,
+        definition="",
+        source="not_found",
+        faithfulness_score=0.0,
+        chunk_id=""
+    )
+
     word_clean = word.strip()
     word_lower = word_clean.lower()
     

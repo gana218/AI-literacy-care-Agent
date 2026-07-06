@@ -96,13 +96,33 @@ function handleTextSelection(e) {
     
     if (selectedText.length > 0 && selectedText.length < 30) {
       console.log("AI Literacy Care - Text selected:", selectedText);
-      // Lookup term
-      chrome.runtime.sendMessage({ type: "LOOKUP_TERM", word: selectedText }, (res) => {
-        if (res && res.success && res.term && res.term.source !== 'not_found') {
-          showTooltip(e.pageX, e.pageY, res.term);
-        } else {
-          showTooltip(e.pageX, e.pageY, { term: selectedText, definition: "RAG 사전에서 뜻을 찾지 못했습니다.", source: "" });
+      
+      // 1번 RAG 팀 context 필드: 드래그한 단어 주변 문장을 추출해서 함께 전송 (LLM 동음이의어 구분 정확도 향상)
+      let context = null;
+      try {
+        const anchorNode = selection.anchorNode;
+        if (anchorNode && anchorNode.textContent) {
+          // 해당 텍스트 노드의 전체 텍스트에서 선택된 단어가 속한 문장을 추출
+          const fullText = anchorNode.textContent;
+          // 단어 위치 찾기
+          const wordIndex = fullText.indexOf(selectedText);
+          if (wordIndex !== -1) {
+            // 앞뒤 100자 정도를 context로 활용
+            const start = Math.max(0, wordIndex - 60);
+            const end = Math.min(fullText.length, wordIndex + selectedText.length + 60);
+            context = fullText.slice(start, end).trim();
+          }
         }
+      } catch (e) {
+        // context 추출 실패 시 조용히 무시
+      }
+      
+      // Lookup term
+      chrome.runtime.sendMessage({ type: "LOOKUP_TERM", word: selectedText, context }, (res) => {
+        if (res && res.success && res.term && res.term.source !== 'not_found' && res.term.definition) {
+          showTooltip(e.pageX, e.pageY, res.term);
+        }
+        // source가 not_found이면 툴팁을 아예 표시하지 않음 (조용히 무시)
       });
     }
   }, 50);

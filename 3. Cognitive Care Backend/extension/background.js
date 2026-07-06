@@ -101,11 +101,16 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     chrome.storage.local.get(['sessionId'], async (res) => {
       const sessionId = res.sessionId || "mock-session";
       try {
-        const url = new URL(`${API_BASE}/terms/lookup`);
-        url.searchParams.append("word", message.word);
-        url.searchParams.append("sessionId", sessionId);
-        
-        const fetchRes = await fetch(url.toString());
+        // 1번 RAG 팀 고도화 연동: GET → POST, context 필드 추가
+        const fetchRes = await fetch(`${API_BASE}/terms/lookup`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            word: message.word,
+            sessionId: sessionId,
+            context: message.context || null,
+          })
+        });
         const data = await fetchRes.json();
         sendResponse({ success: true, term: data });
       } catch(e) {
