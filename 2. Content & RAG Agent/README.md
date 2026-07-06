@@ -67,7 +67,9 @@ pip install -r requirements.txt
 
 # 환경 변수 설정
 copy .env.example .env
-# .env 파일을 열어 GEMINI_API_KEY 입력 (비용 0원 무료 티어 활용)
+# .env 파일을 열어 아래 키를 입력합니다:
+# - GEMINI_API_KEY: Gemini API 키 (비용 0원 무료 티어 활용)
+# - WOORIMAL_API_KEY (선택): 국립국어원 우리말샘 오픈 API 키. 설정 시 hover 단어가 로컬 사전에 없을 경우 우리말샘 API에서 실시간으로 단어 정의를 자동 조회합니다.
 ```
 
 ### 2. 데모 모드로 실행 (API 키 없이)

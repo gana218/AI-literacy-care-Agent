@@ -114,3 +114,19 @@ def test_terms_lookup_api_endpoint():
     assert data["source"] != "not_found"
     assert "faithfulnessScore" in data
     assert "faithfulness_score" in data
+
+
+@patch("backend.app.agents.content_reducer.rag_engine._query_woorimalsem_api")
+def test_lookup_term_woorimalsem_api(mock_query_api):
+    """우리말샘 오픈 API 응답을 통해 용어 정의를 조회하는지 검증."""
+    mock_query_api.return_value = {
+        "term": "우리말단어",
+        "definition": "우리말샘에서 정의한 단어의 뜻입니다.",
+        "source": "우리말샘 (국립국어원)"
+    }
+
+    res = lookup_term("우리말단어")
+    assert res["term"] == "우리말단어"
+    assert res["definition"] == "우리말샘에서 정의한 단어의 뜻입니다."
+    assert res["source"] == "우리말샘 (국립국어원)"
+    assert res["faithfulness_score"] == 1.0

@@ -459,14 +459,64 @@ def get_faithfulness_summary(terms: list[TermDict]) -> dict:
     }
 
 
+def _query_woorimalsem_api(word: str) -> dict | None:
+    """
+    국립국어원 우리말샘 오픈 API (공공데이터포털)를 호출하여 단어 정의를 조회한다.
+    """
+    import urllib.request
+    import urllib.parse
+
+    api_key = os.getenv("WOORIMAL_API_KEY", "") or os.getenv("DICTIONARY_API_KEY", "")
+    if not api_key:
+        return None
+
+    try:
+        query_params = {
+            "key": api_key,
+            "q": word,
+            "req_type": "json",
+            "part": "word",
+            "sort": "dict",
+            "start": 1,
+            "num": 5
+        }
+        encoded_params = urllib.parse.urlencode(query_params)
+        url = f"https://opendict.korean.go.kr/api/search?{encoded_params}"
+
+        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+        with urllib.request.urlopen(req, timeout=5) as response:
+            res_content = response.read().decode("utf-8")
+            data = json.loads(res_content)
+
+        # 우리말샘 JSON 응답 구조 파싱
+        items = data.get("channel", {}).get("item", [])
+        if items:
+            best_item = items[0]
+            definition = best_item.get("sense", {}).get("definition", "")
+            # HTML 태그 제거
+            definition = re.sub(r"<[^>]*>", "", definition).strip()
+
+            if definition:
+                return {
+                    "term": best_item.get("word", word).replace("^", "").replace("_", ""),
+                    "definition": definition,
+                    "source": "우리말샘 (국립국어원)"
+                }
+    except Exception as e:
+        print(f"[rag_engine] 우리말샘 API 호출 실패: {e}")
+
+    return None
+
+
 def lookup_term(word: str, context: str | None = None) -> TermDict:
     """
     단어 단건에 대한 용어 뜻을 조회한다. (확장 프로그램 hover lookup용 무료 경로)
     
     우선순위:
       1. 로컬 용어집에서 용어/별칭(alias) 대소문자 구분 없이 완벽 매칭 시도
-      2. sentence-transformers를 활용한 임베딩 코사인 유사도 검색 (유사도 >= 0.3)
-      3. 미발견 시 source="not_found" 반환 (프론트가 조용히 무시)
+      2. 국립국어원 우리말샘 오픈 API 조회 (WOORIMAL_API_KEY 설정 시 작동)
+      3. sentence-transformers를 활용한 임베딩 코사인 유사도 검색 (유사도 >= 0.3)
+      4. 미발견 시 source="not_found" 반환 (프론트가 조용히 무시)
     """
     word_clean = word.strip()
     word_lower = word_clean.lower()
@@ -493,7 +543,18 @@ def lookup_term(word: str, context: str | None = None) -> TermDict:
                 chunk_id=""
             )
 
-    # 2. 임베딩 유사도 매칭 시도 (텍스트 레이어가 있는 경우)
+    # 2. 우리말샘 오픈 API 조회 시도
+    api_res = _query_woorimalsem_api(word_clean)
+    if api_res:
+        return TermDict(
+            term=api_res["term"],
+            definition=api_res["definition"],
+            source=api_res["source"],
+            faithfulness_score=1.0,
+            chunk_id=""
+        )
+
+    # 3. 임베딩 유사도 매칭 시도 (텍스트 레이어가 있는 경우)
     model = _get_embedding_model()
     if model is not None:
         try:
@@ -518,7 +579,7 @@ def lookup_term(word: str, context: str | None = None) -> TermDict:
         except Exception as e:
             print(f"[rag_engine] 단어 lookup 임베딩 유사도 검색 실패: {e}")
 
-    # 3. 미발견 폴백
+    # 4. 미발견 폴백
     return TermDict(
         term=word_clean,
         definition="",
