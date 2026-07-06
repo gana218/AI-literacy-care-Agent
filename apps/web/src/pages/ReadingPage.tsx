@@ -165,7 +165,6 @@ export default function ReadingPage() {
     setHighlights,
     setFocusScore,
     setProgress,
-    setTermDefinition,
   ]);
 
   const isFinished = progress >= 100;

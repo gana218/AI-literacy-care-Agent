@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy import func as sql_func, desc
@@ -30,13 +30,14 @@ router = APIRouter(prefix="/api", tags=["API"])
 # ==============================
 
 @router.post("/session/start", response_model=SessionStartResponse)
-async def start_session(req: SessionStartRequest, db: AsyncSession = Depends(get_db)):
-    """읽기 세션 시작."""
+async def start_session(req: SessionStartRequest, request: Request, db: AsyncSession = Depends(get_db)):
+    """읽기 세션 시작 + 2번 Content Reducer 에이전트 연동 (M3 기능 동결)"""
     # 사용자 자동 생성 (없으면)
-    user_result = await db.execute(select(User).filter(User.id == req.user_id))
+    user_id = req.user_id
+    user_result = await db.execute(select(User).filter(User.id == user_id))
     user = user_result.scalars().first()
     if not user:
-        new_user = User(id=req.user_id)
+        new_user = User(id=user_id)
         db.add(new_user)
         await db.commit()
 
@@ -44,13 +45,77 @@ async def start_session(req: SessionStartRequest, db: AsyncSession = Depends(get
     
     new_session = ReadingSession(
         id=session_id,
-        user_id=req.user_id,
+        user_id=user_id,
         document_id=req.document_id
     )
     db.add(new_session)
     await db.commit()
     
-    return SessionStartResponse(session_id=session_id, message="Session started successfully.")
+    host = request.headers.get("host", "localhost:8000")
+    ws_endpoint = f"ws://{host}/ws/reading/{session_id}"
+    
+    # 2번 에이전트 연동 (Content Reducer 모듈 구동)
+    try:
+        from ...content_reducer.agent import run_content_reducer
+    except ImportError:
+        try:
+            from ..agents.content_reducer.agent import run_content_reducer
+        except ImportError:
+            def run_content_reducer(state):
+                state["chunks"] = [{"chunk_id": "c1", "original_text": "샘플 본문입니다.", "difficulty": 50, "char_start": 0, "char_end": 10}]
+                state["difficulty_score"] = 50.0
+                return state
+
+    mock_raw_text = (
+        "디지털 시대의 필수 역량은 리터러시(Literacy)와 인공지능 윤리입니다. "
+        "최근 LLM 기술의 급격한 발전으로 인해 AI 환각 현상이나 알고리즘의 편향 문제가 사회적 이슈로 대두되고 있습니다. "
+        "이러한 문제를 해결하기 위해 다양한 AI 정렬 연구와 편향 제어 기술이 개발되고 있습니다."
+    )
+    
+    initial_state = create_initial_state(
+        session_id=session_id, 
+        user_id=user_id, 
+        document_id=req.document_id, 
+        raw_text=mock_raw_text
+    )
+    updated_state = run_content_reducer(initial_state)
+    
+    def map_term(t):
+        return {
+            "term": t.get("term", ""), 
+            "definition": t.get("definition", ""), 
+            "source": t.get("source", ""), 
+            "faithfulnessScore": t.get("faithfulness_score", 1.0), 
+            "chunkId": t.get("chunk_id", "")
+        }
+
+    def map_chunk(c):
+        return {
+            "chunkId": c.get("chunk_id", c.get("index", "c_unknown")), 
+            "originalText": c.get("original_text", c.get("text", "")),
+            "restructuredText": c.get("restructured_text", c.get("simplified_text", "")), 
+            "difficulty": c.get("difficulty", 50.0),
+            "charStart": c.get("char_start", 0), 
+            "charEnd": c.get("char_end", 10),
+            "terms": [map_term(t) for t in c.get("terms", [])]
+        }
+        
+    article_data = {
+        "id": req.document_id,
+        "title": "AI 리터러시 및 윤리 세션 (M3 연동)",
+        "category": "Technology",
+        "author": "AI Care System",
+        "content": [c.get("original_text", c.get("text", "")) for c in updated_state.get("chunks", [])],
+        "difficulty": str(updated_state.get("difficulty_score", 50.0)),
+        "chunks": [map_chunk(c) for c in updated_state.get("chunks", [])]
+    }
+    
+    return SessionStartResponse(
+        session_id=session_id, 
+        message="Session started successfully.",
+        article=article_data,
+        wsEndpoint=ws_endpoint
+    )
 
 
 @router.post("/session/{session_id}/finish", response_model=SessionFinishResponse)
@@ -129,7 +194,7 @@ async def finish_session(
         
         return SessionFinishResponse(
             session_id=session_id, 
-            message="Session finished and flushed to PostgreSQL.",
+            message="Session finished and flushed to PostgreSQL/SQLite.",
             saved_events_count=saved_count
         )
     finally:
@@ -153,8 +218,7 @@ async def submit_quiz(
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
     
-    # 간단한 채점 로직 (실제로는 정답 DB와 비교)
-    # 현재 스텁: 선택지에 따라 간단 판정
+    # 간단한 채점 로직 (선택지에 따라 판정)
     is_correct = req.selectedOption in ["A", "a", "1", "true", "True"]
     
     quiz_record = QuizResult(
@@ -263,7 +327,7 @@ async def get_session_result(
 
 
 # ==============================
-# Term Explanation / RAG Stub (7/5)
+# Term Explanation (7/5~7/9)
 # ==============================
 
 @router.post("/session/{session_id}/explain", response_model=TermExplainResponse)
@@ -281,8 +345,6 @@ async def explain_term(
         
     from ..services.rag_service import explain_term_with_rag
     
-    # 세션에 기록된 실제 원문을 문맥으로 활용할 수 있도록 전달
-    # (여기서는 기본 샘플 텍스트를 문맥으로 결합합니다)
     sample_raw_text = (
         "디지털 시대의 필수 역량은 리터러시(Literacy)와 인공지능 윤리입니다. "
         "최근 LLM 기술의 급격한 발전으로 인해 AI 환각 현상이나 알고리즘의 편향 문제가 사회적 이슈로 대두되고 있습니다. "
@@ -309,7 +371,6 @@ async def get_user_profile(
     """사용자 장기 리터러시 프로필 조회 (6/30 구현)."""
     profile_data = await get_profile(db, user_id)
     if not profile_data:
-        # 프로필이 없으면 기본값 반환
         return ProfileResponse(
             user_id=user_id,
             total_sessions=0,

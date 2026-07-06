@@ -47,15 +47,14 @@ export const TermTooltip: React.FC<TermTooltipProps> = ({
 
     // 1. 이미 캐시에 존재한다면 네트워크 요청을 하지 않고 즉시 표시
     if (termDefinitions[term]) {
+      setAiDefinition(termDefinitions[term]);
       return;
     }
 
     if (aiDefinition || isLoading) return;
 
     let active = true;
-    Promise.resolve().then(() => {
-      if (active) setIsLoading(true);
-    });
+    setIsLoading(true);
 
     api.getTermDefinition(sessionId || '', term)
       .then((res) => {

@@ -5,13 +5,14 @@ from datetime import datetime
 
 # --- Session ---
 class SessionStartRequest(BaseModel):
-    user_id: str
-    document_id: str
+    userId: str
+    articleId: str
 
 
 class SessionStartResponse(BaseModel):
-    session_id: str
-    message: str
+    sessionId: str
+    article: dict
+    wsEndpoint: str
 
 
 class SessionFinishRequest(BaseModel):

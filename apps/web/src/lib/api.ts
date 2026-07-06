@@ -138,26 +138,11 @@ export const api = {
       const res = await fetch(`${BASE_URL}/api/session/start`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          user_id: req.userId,
-          document_id: req.articleId,
-        }),
+        body: JSON.stringify(req),
       });
       if (res.ok) {
         const data = await res.json();
-        return {
-          sessionId: data.session_id,
-          article: {
-            id: req.articleId,
-            title: sampleArticle.title,
-            category: sampleArticle.category,
-            author: sampleArticle.author,
-            publishedAt: sampleArticle.publishedAt,
-            content: sampleArticle.content,
-            difficulty: 0.6,
-          },
-          wsEndpoint: `${BASE_URL.replace(/^http/, 'ws')}/ws/reading/${data.session_id}`,
-        };
+        return data;
       }
     } catch (err) {
       console.error('[API] Failed to startSession from server, falling back to mock:', err);
@@ -241,14 +226,14 @@ export const api = {
   getTermDefinition: async (sessionId: string, term: string): Promise<{ explanation: string }> => {
     console.log('[API] getTermDefinition Request:', { sessionId, term });
     try {
-      const res = await fetch(`${BASE_URL}/api/session/${sessionId}/explain`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ term }),
+      // 백엔드 API 명세에 맞춤: GET /api/terms/lookup?word={term}
+      const res = await fetch(`${BASE_URL}/api/terms/lookup?word=${encodeURIComponent(term)}&sessionId=${encodeURIComponent(sessionId)}`, {
+        method: 'GET',
       });
       if (res.ok) {
         const data = await res.json();
-        return data;
+        // RAG 엔진이 응답으로 { term, definition, source, faithfulnessScore } 를 반환함. 프론트엔드는 explanation 필드 기대.
+        return { explanation: data.definition || `[AI 주석] RAG 사전에서 '${term}'의 뜻을 찾지 못했습니다.` };
       }
     } catch (err) {
       console.error('[API] Failed to getTermDefinition from server, falling back to mock:', err);

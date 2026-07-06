@@ -88,17 +88,12 @@ export const QuizCard: React.FC = () => {
   // 타이머
   useEffect(() => {
     if (!isQuizVisible || phase !== 'answering') return;
-    if (timeLeft <= 0) return;
-
-    const timer = setTimeout(() => {
-      if (timeLeft === 1) {
-        setPhase('incorrect');
-        setSelectedIndex(-1); // 시간 초과
-        setTimeLeft(0);
-      } else {
-        setTimeLeft((t) => t - 1);
-      }
-    }, 1000);
+    if (timeLeft <= 0) {
+      setPhase('incorrect');
+      setSelectedIndex(-1); // 시간 초과
+      return;
+    }
+    const timer = setTimeout(() => setTimeLeft((t) => t - 1), 1000);
     return () => clearTimeout(timer);
   }, [isQuizVisible, phase, timeLeft]);
 

@@ -2,15 +2,15 @@ import sys
 import asyncio
 import traceback
 
-if sys.platform == 'win32':
+if sys.platform == "win32":
     asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from contextlib import asynccontextmanager
 
-from .api import ws, endpoints
+from .api import ws, endpoints, extension_session, terms, users
 from .core.db import engine, Base
 from .models import models
 
@@ -24,8 +24,7 @@ async def lifespan(app: FastAPI):
             await conn.run_sync(Base.metadata.create_all)
         print("[Startup] Database tables created successfully.")
     except Exception as e:
-        print(f"[Startup] Database setup warning: {e}")
-        print("[Startup] Continuing without DB (some features may not work).")
+        print(f"⚠️ DB 연결 실패 (Docker/PostgreSQL 미실행 등). 데모 모드로 계속 진행합니다: {e}")
     
     # Redis 연결 확인
     try:
@@ -36,7 +35,7 @@ async def lifespan(app: FastAPI):
         await redis_client.aclose()
     except Exception as e:
         print(f"[Startup] Redis connection warning: {e}")
-        print("[Startup] Continuing without Redis (WebSocket caching may not work).")
+        print("[Startup] Continuing without Redis (WebSocket caching will use InMemoryFallback).")
     
     yield
     
@@ -94,6 +93,9 @@ async def not_found_handler(request: Request, exc):
 # Register routers
 app.include_router(ws.router)
 app.include_router(endpoints.router)
+app.include_router(extension_session.router)
+app.include_router(terms.router)
+app.include_router(users.router)
 
 
 @app.get("/")

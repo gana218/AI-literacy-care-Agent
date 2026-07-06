@@ -30,24 +30,25 @@ export const FloatingControlPanel: React.FC = () => {
   const focusColor = getFocusColor(focusScore);
   const focusLabel = getFocusLabel(focusScore);
 
+  // ── 7/1 실시간 개입 로그 상태 ──
+  const [logs, setLogs] = useState<{ id: string; time: string; msg: string; type: 'system' | 'nudge' | 'quiz' | 'xp' }[]>([]);
+  const prevRef = useRef({ focusScore, nudgeLevel, isQuizVisible, progress, xp });
+  const logContainerRef = useRef<HTMLDivElement>(null);
+  const [isOnline, setIsOnline] = useState(false);
+  const wasOnline = useRef(false);
+
   // 현재 시간 포맷팅 헬퍼
   const getNowString = () => {
     const d = new Date();
     return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}:${String(d.getSeconds()).padStart(2, '0')}`;
   };
 
-  // ── 7/1 실시간 개입 로그 상태 ──
-  const [logs, setLogs] = useState<{ id: string; time: string; msg: string; type: 'system' | 'nudge' | 'quiz' | 'xp' }[]>(() => {
-    const d = new Date();
-    const timeStr = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}:${String(d.getSeconds()).padStart(2, '0')}`;
-    return [
-      { id: 'init', time: timeStr, msg: '🤖 리터러시 에이전트 오케스트레이터 가동 완료', type: 'system' }
-    ];
-  });
-  const prevRef = useRef({ focusScore, nudgeLevel, isQuizVisible, progress, xp });
-  const logContainerRef = useRef<HTMLDivElement>(null);
-  const [isOnline, setIsOnline] = useState(false);
-  const wasOnline = useRef(false);
+  // 초기 로드 시 시스템 안내 메시지 추가
+  useEffect(() => {
+    setLogs([
+      { id: 'init', time: getNowString(), msg: '🤖 리터러시 에이전트 오케스트레이터 가동 완료', type: 'system' }
+    ]);
+  }, []);
 
   // 7/6 추가: 실시간 WebSocket 연결 모니터링 및 연결 로그 출력
   useEffect(() => {
@@ -367,7 +368,26 @@ function FocusSimulator() {
     return () => clearAllTimeouts();
   }, []);
 
-  function proceedToStep5() {
+  // 퀴즈 결과가 추가되면 데모 Step 4에서 자동으로 Step 5로 이동
+  useEffect(() => {
+    if (demoStep === 4 && quizResults.length > 0) {
+      proceedToStep5();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [quizResults.length, demoStep]);
+
+  const resetAll = () => {
+    clearAllTimeouts();
+    setDemoStep(null);
+    setDemoStatus('');
+    setProgress(0);
+    setFocusScore(85);
+    dismissNudge();
+    dismissQuiz();
+    restartDemoSession();
+  };
+
+  const proceedToStep5 = () => {
     clearAllTimeouts();
     setDemoStep(5);
     setDemoStatus('✨ 퀴즈 정답! 집중도 회복 및 90% 돌파');
@@ -383,27 +403,6 @@ function FocusSimulator() {
       setDemoStep(null);
     }, 3000);
     timeoutIds.current.push(t1);
-  }
-
-  // 퀴즈 결과가 추가되면 데모 Step 4에서 자동으로 Step 5로 이동
-  useEffect(() => {
-    if (demoStep === 4 && quizResults.length > 0) {
-      Promise.resolve().then(() => {
-        proceedToStep5();
-      });
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [quizResults.length, demoStep]);
-
-  const resetAll = () => {
-    clearAllTimeouts();
-    setDemoStep(null);
-    setDemoStatus('');
-    setProgress(0);
-    setFocusScore(85);
-    dismissNudge();
-    dismissQuiz();
-    restartDemoSession();
   };
 
   const handleAutoAnswer = () => {
