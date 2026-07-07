@@ -35,11 +35,14 @@ function flushEvents() {
   const toSend = [...eventsQueue];
   eventsQueue = [];
   
-  chrome.runtime.sendMessage({ type: "FLUSH_EVENTS", events: toSend }, (res) => {
-    if (res && res.intervention && res.intervention.payload) {
-      handleIntervention(res.intervention);
-    }
-  });
+  try {
+    chrome.runtime.sendMessage({ type: "FLUSH_EVENTS", events: toSend }, (res) => {
+      if (chrome.runtime.lastError) return;
+      if (res && res.intervention && res.intervention.payload) {
+        handleIntervention(res.intervention);
+      }
+    });
+  } catch (err) { /* 콘텍스트 상실 시 무시 */ }
 }
 
 function handleIntervention(command) {
@@ -118,12 +121,16 @@ function handleTextSelection(e) {
       }
       
       // Lookup term
-      chrome.runtime.sendMessage({ type: "LOOKUP_TERM", word: selectedText, context }, (res) => {
-        if (res && res.success && res.term && res.term.source !== 'not_found' && res.term.definition) {
-          showTooltip(e.pageX, e.pageY, res.term);
-        }
-        // source가 not_found이면 툴팁을 아예 표시하지 않음 (조용히 무시)
-      });
+      try {
+        chrome.runtime.sendMessage({ type: "LOOKUP_TERM", word: selectedText, context }, (res) => {
+          if (chrome.runtime.lastError) return; // 확장 콘텍스트 상실 시 조용히 종료
+          if (res && res.success && res.term && res.term.source !== 'not_found' && res.term.definition) {
+            showTooltip(e.pageX, e.pageY, res.term);
+          }
+        });
+      } catch (err) {
+        console.log("[AI Literacy Care] 페이지를 F5로 새로고침하면 다시 사용할 수 있습니다.");
+      }
     }
   }, 50);
 }
