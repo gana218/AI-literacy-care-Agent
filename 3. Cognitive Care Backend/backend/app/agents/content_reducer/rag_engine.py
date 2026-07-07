@@ -28,6 +28,8 @@ import re
 from pathlib import Path
 
 from backend.app.agents.content_reducer.contracts import ChunkDict, TermDict
+from backend.app.agents.content_reducer.snowchat_client import is_snowchat_available, _call_llm_via_snowchat
+
 
 
 # ---------------------------------------------------------------------------
@@ -74,49 +76,50 @@ def _strip_particles(word: str) -> str:
 
 
 # ---------------------------------------------------------------------------
-# Gemini LLM 실시간 유추 (Step 4 fallback)
+# LLM 실시간 유추 (Step 4 fallback) — 2번 팀과 동일 SnowChat Gateway 방식
 # ---------------------------------------------------------------------------
 
-def _query_gemini_llm(word: str, context: str | None = None) -> dict | None:
+def _query_llm_definition(word: str, context: str | None = None) -> dict | None:
     """
-    Gemini 2.0 Flash를 활용해 단어의 의미를 실시간으로 유추한다.
-    context(문장)가 있으면 동음이의어를 구분하여 더 정확한 뜻풀이를 제공한다.
+    Mindlogic SnowChat API Gateway를 통해 Gemini 2.5 Flash로 단어 뜻을 실시간 유추.
+    2번 팀(Content & RAG Agent)과 동일한 방식으로 통일.
+    context(문장)가 있으면 동음이의어를 구분해 더 정확한 뜻풀이를 제공한다.
     """
-    api_key = os.getenv("GEMINI_API_KEY", "")
-    if not api_key:
+    if not is_snowchat_available():
         return None
 
     try:
-        import google.generativeai as genai  # type: ignore
-        genai.configure(api_key=api_key)
-        model = genai.GenerativeModel("gemini-2.0-flash")
+        system_instruction = (
+            "당신은 리터러시 케어 에이전트의 한국어 단어 사전자문관입니다. "
+            "사용자가 기사를 읽다가 모르는 단어를 드래그했을 때, 그 단어의 뜻을 제공해야 합니다."
+        )
 
         if context:
             prompt = (
-                f"다음 문장에서 '{word}'라는 단어의 뜻을 50자 이내로 쉽게 설명해 주세요. "
-                f"전문 용어라면 비전문가도 이해할 수 있도록 친절하게 설명하세요.\n"
-                f"문장: {context}\n"
-                f"설명만 간결하게 답변하고 '~입니다'로 마무리하세요."
+                f"다음 기사 문맥(Context)을 고려하여 단어 '{word}'의 뜻을 50자 이내의 친절한 한국어로 설명해 주세요.\n\n"
+                f"기사 문맥: {context}"
             )
         else:
-            prompt = (
-                f"'{word}'의 뜻을 50자 이내로 쉽고 친절하게 설명해 주세요. "
-                f"설명만 간결하게 답변하고 '~입니다'로 마무리하세요."
-            )
+            prompt = f"단어 '{word}'의 뜻을 50자 이내의 친절한 한국어로 설명해 주세요."
 
-        response = model.generate_content(prompt)
-        definition = response.text.strip()
+        result = _call_llm_via_snowchat(
+            model="gemini-2.5-flash",
+            prompt=prompt,
+            system_instruction=system_instruction
+        )
 
-        if definition:
+        if result:
+            result = re.sub(r'^["\']+|["\']+$', '', result).strip()
             return {
                 "term": word,
-                "definition": definition[:120],  # 최대 120자 제한
+                "definition": result[:120],
                 "source": "LLM 실시간 유추"
             }
     except Exception as e:
-        print(f"[rag_engine] Gemini LLM 유추 실패: {e}")
+        print(f"[rag_engine] LLM 단어 실시간 유추 실패: {e}")
 
     return None
+
 
 # ---------------------------------------------------------------------------
 # 설정
@@ -692,7 +695,7 @@ def lookup_term(word: str, context: str | None = None) -> TermDict:
             print(f"[rag_engine] 단어 lookup 임베딩 유사도 검색 실패: {e}")
 
     # 4. Gemini LLM 실시간 유추 (GEMINI_API_KEY 설정 시)
-    llm_res = _query_gemini_llm(word_stripped or word_clean, context)
+    llm_res = _query_llm_definition(word_stripped or word_clean, context)
     if llm_res:
         return TermDict(
             term=llm_res["term"],
