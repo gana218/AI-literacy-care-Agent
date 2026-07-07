@@ -1,15 +1,35 @@
-from backend.evaluation.evaluation_runner import evaluate_sample
+from backend.evaluation.metrics import (
+    calculate_faithfulness_score,
+    calculate_relevance_score,
+    calculate_average,
+    is_passed,
+)
 
 
-def run_evaluation_pipeline():
+def run_evaluation(sample: dict) -> dict:
     """
-    QA Evaluation Pipeline
-
-    현재는 Dummy Runner를 사용한다.
-    이후 Ragas가 연결되면 evaluate_sample()을
-    실제 평가 함수로 교체한다.
+    Golden Dataset 한 개를 평가한다.
     """
 
-    report = evaluate_sample()
+    raw_text = sample.get("raw_text", "")
+    expected_quiz = sample.get("expected_quiz", "")
+    expected_answer = sample.get("expected_answer", "")
 
-    return report
+    faithfulness = calculate_faithfulness_score(
+        expected=raw_text,
+        actual=expected_answer,
+    )
+
+    relevance = calculate_relevance_score(
+        question=expected_quiz,
+        answer=expected_answer,
+    )
+
+    average_score = calculate_average([faithfulness, relevance])
+
+    return {
+        "faithfulness": faithfulness,
+        "relevance": relevance,
+        "average_score": average_score,
+        "passed": is_passed(average_score, threshold=0.2),
+    }
