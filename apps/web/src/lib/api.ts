@@ -154,7 +154,7 @@ export const api = {
     return {
       sessionId: `session-${Math.random().toString(36).substr(2, 9)}`,
       article: {
-        id: req.articleId,
+        id: req.articleId ?? 'doc',
         title: sampleArticle.title,
         category: sampleArticle.category,
         author: sampleArticle.author,
