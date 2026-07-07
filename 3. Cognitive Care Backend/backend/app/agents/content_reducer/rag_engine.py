@@ -112,7 +112,7 @@ def _query_llm_definition(word: str, context: str | None = None) -> dict | None:
             result = re.sub(r'^["\']+|["\']+$', '', result).strip()
             return {
                 "term": word,
-                "definition": result[:120],
+                "definition": result,  # 전체 문장 반환 (잘림 없음)
                 "source": "LLM 실시간 유추"
             }
     except Exception as e:
@@ -581,10 +581,19 @@ def _query_woorimalsem_api(word: str) -> dict | None:
             data = json.loads(res_content)
 
         # 우리말샘 JSON 응답 구조 파싱
-        items = data.get("channel", {}).get("item", [])
+        raw_items = data.get("channel", {}).get("item", [])
+        # 단건 결과는 dict로 오는 경우 있음 → 리스트로 래핑
+        if isinstance(raw_items, dict):
+            raw_items = [raw_items]
+        items = raw_items if isinstance(raw_items, list) else []
+
         if items:
             best_item = items[0]
-            definition = best_item.get("sense", {}).get("definition", "")
+            # sense도 list일 수 있음 → 첫 번째 요소 추출
+            sense = best_item.get("sense", {})
+            if isinstance(sense, list):
+                sense = sense[0] if sense else {}
+            definition = sense.get("definition", "")
             # HTML 태그 제거
             definition = re.sub(r"<[^>]*>", "", definition).strip()
 
