@@ -35,6 +35,7 @@ async def lookup_term_post(req: TermLookupRequest):
             "faithfulness_score": t.get("faithfulness_score", 0.0),
             "chunkId": t.get("chunk_id", ""),
             "chunk_id": t.get("chunk_id", ""),
+            "_meta": t.get("_meta", {"tried": [], "errors": {}}),
         }
     except Exception as e:
         return {
@@ -68,6 +69,7 @@ async def lookup_term_get(word: str, sessionId: Optional[str] = None, context: O
             "faithfulness_score": t.get("faithfulness_score", 0.0),
             "chunkId": t.get("chunk_id", ""),
             "chunk_id": t.get("chunk_id", ""),
+            "_meta": t.get("_meta", {"tried": [], "errors": {}}),
         }
     except Exception as e:
         return {
