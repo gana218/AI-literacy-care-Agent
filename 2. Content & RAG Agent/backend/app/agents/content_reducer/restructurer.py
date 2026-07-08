@@ -57,54 +57,6 @@ _FALLBACK_DATA = _load_fallback_data()
 
 
 # ---------------------------------------------------------------------------
-# Gemini 클라이언트 초기화 (Google AI Studio 무료)
-# ---------------------------------------------------------------------------
-
-def _get_client():
-    """Gemini 클라이언트를 반환한다. 키가 없거나 패키지가 없으면 None."""
-    try:
-        from google import genai
-
-        api_key = os.getenv("GEMINI_API_KEY", "")
-        if not api_key or api_key.startswith("your_"):
-            return None
-        return genai.Client(api_key=api_key)
-    except ImportError:
-        return None
-
-
-# ---------------------------------------------------------------------------
-# 데모 / Stub 재구성
-# ---------------------------------------------------------------------------
-
-_LEVEL_LABELS = {
-    1: "초급",
-    2: "초중급",
-    3: "중급",
-    4: "중고급",
-    5: "전문가",
-}
-
-
-def _demo_restructure(text: str, level: int) -> str:
-    """API 없이 동작하는 데모용 재구성."""
-    # 1. 고품질 데모 캐시 데이터 매칭 시도
-    if _FALLBACK_DATA and "chunks" in _FALLBACK_DATA:
-        normalized_text = text.replace(" ", "").replace("\n", "")
-        for entry in _FALLBACK_DATA["chunks"]:
-            ref_text = entry["original_text"].replace(" ", "").replace("\n", "")
-            if normalized_text in ref_text or ref_text in normalized_text:
-                return entry["restructured_text"]
-
-    # 2. 매칭 실패 시 단순 시뮬레이션
-    label = _LEVEL_LABELS.get(level, "중급")
-    sentences = re.split(r"(?<=[다요했됩습])[.]\s*|(?<=[.!?])\s+", text)
-    simplified = " ".join(s.strip() for s in sentences if s.strip())
-    return f"[{label} 수준 재구성] {simplified}"
-
-from backend.app.agents.content_reducer.snowchat_client import is_snowchat_available, _call_llm_via_snowchat
-
-# ---------------------------------------------------------------------------
 # 데모 / Stub 재구성
 # ---------------------------------------------------------------------------
 

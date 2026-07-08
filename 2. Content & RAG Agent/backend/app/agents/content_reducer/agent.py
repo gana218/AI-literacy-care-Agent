@@ -177,6 +177,14 @@ def run_content_reducer(state: "ReadingSessionState") -> "ReadingSessionState":
         all_terms = collect_all_terms(chunks)
         simplified_text = _collect_simplified_text(chunks)
 
+        # 프론트엔드로 나가는 term에 디버그 메타(_meta)가 노출되지 않도록 제거
+        for chunk in chunks:
+            if "terms" in chunk:
+                for t in chunk["terms"]:
+                    t.pop("_meta", None)
+        for t in all_terms:
+            t.pop("_meta", None)
+
         state["chunks"] = chunks
         state["simplified_text"] = simplified_text
         state["terms"] = all_terms

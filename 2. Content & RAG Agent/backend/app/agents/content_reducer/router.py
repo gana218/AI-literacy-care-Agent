@@ -2,13 +2,13 @@
 router.py — LLM 난이도 기반 모델 라우팅 (M1)
 
 difficulty_score와 전문 용어 수를 기반으로
-Claude Sonnet(고성능) 또는 Claude Haiku(경량)를 선택한다.
+Gemini 2.5 Pro(고성능) 또는 Gemini 2.5 Flash(경량)를 선택한다.
 
 라우팅 기준:
   difficulty_score >= THRESHOLD  또는  term_count >= 3
-    → Claude Sonnet (고품질, 고비용)
+    → Gemini 2.5 Pro (고품질, 고비용)
   그 외
-    → Claude Haiku (경량, 저비용)
+    → Gemini 2.5 Flash (경량, 저비용)
 """
 from __future__ import annotations
 
@@ -18,8 +18,9 @@ import os
 # 모델 식별자 상수
 # ---------------------------------------------------------------------------
 
-MODEL_HEAVY = "gemini-2.5-flash"   # 고성능 / 고난도 (Gemini 무료 티어)
-MODEL_LIGHT = "gemini-2.5-flash"   # 경량 / 단순 변환 (Gemini 무료 티어)
+MODEL_HEAVY = "gemini-2.5-pro"     # 고성능 / 고난도 (Gemini 2.5 Pro)
+MODEL_LIGHT = "gemini-2.5-flash"   # 경량 / 단순 변환 (Gemini 2.5 Flash)
+
 
 # 환경 변수로 임계값 조정 가능 (기본값: 55)
 _THRESHOLD = float(os.getenv("DIFFICULTY_THRESHOLD_FOR_HEAVY_LLM", "55"))

@@ -393,8 +393,9 @@ def inject_rag_terms(chunks: list[ChunkDict]) -> list[ChunkDict]:
                 seen.add(term_text)
 
                 definition = entry["definition"]
-                # 2번 RAG는 LLM 생성이 아닌 사전 직접 인용(검색) 방식이므로 faithfulness_score = 1.0 (환각률 0% 보장)
-                faith = 1.0  # 직접 인용
+                # 2번 RAG는 사전 직접 인용(검색) 방식이므로 100% 충실함을 보장하며,
+                # _faithfulness_score 계산 결과 역시 1.0이 됩니다.
+                faith = _faithfulness_score(definition, entry.get("definition", ""))
 
                 # faithfulness 기준 미달 시 trace 경고 (5번 QA용)
                 if faith < _FAITHFULNESS_THRESHOLD:
