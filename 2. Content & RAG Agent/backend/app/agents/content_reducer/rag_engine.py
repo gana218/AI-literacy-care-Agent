@@ -460,6 +460,19 @@ def get_faithfulness_summary(terms: list[TermDict]) -> dict:
     }
 
 
+def _extract_definition_from_item(item: dict) -> str:
+    """우리말샘 item 딕셔너리에서 definition을 안전하게 추출한다."""
+    sense = item.get("sense", [])
+    if isinstance(sense, dict):
+        sense = [sense]
+    if isinstance(sense, list) and sense:
+        # 첫 번째 sense에서 definition을 가져옴
+        first_sense = sense[0]
+        if isinstance(first_sense, dict):
+            return first_sense.get("definition", "")
+    return ""
+
+
 def _disambiguate_homonyms_with_llm(word: str, items: list, context: str) -> dict:
     """
     여러 개의 사전 정의 후보(동음이의어) 중 주어진 문맥에 가장 적합한 정의를 LLM으로 선택한다.
@@ -471,7 +484,7 @@ def _disambiguate_homonyms_with_llm(word: str, items: list, context: str) -> dic
     try:
         candidates = []
         for i, item in enumerate(items[:5]): # 최대 5개 후보
-            defn = item.get("sense", {}).get("definition", "")
+            defn = _extract_definition_from_item(item)
             defn = re.sub(r"<[^>]*>", "", defn).strip()
             if defn:
                 candidates.append((i, defn))
@@ -551,7 +564,7 @@ def _query_woorimalsem_api(word: str, context: str | None = None) -> dict | None
             if context and len(items) > 1:
                 best_item = _disambiguate_homonyms_with_llm(word, items, context)
 
-            definition = best_item.get("sense", {}).get("definition", "")
+            definition = _extract_definition_from_item(best_item)
             # HTML 태그 제거
             definition = re.sub(r"<[^>]*>", "", definition).strip()
 
