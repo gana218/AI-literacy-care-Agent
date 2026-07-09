@@ -153,4 +153,4 @@ python -m pytest backend/app/tests/test_content_e2e.py -v
 | M2 | 7/6  | ✅ 퀴즈 생성 및 Orchestrator 통합 완료 |
 | **ME** | 7/6~7/9 | ✅ 크롬 확장 및 PDF 대응 인입/Header/Footer 제거/Lookup 완료 |
 | M3 | 7/10 | ✅ 기능 동결 및 Gemini API 완전 마이그레이션 완료 |
-| M4 | 7/14 | ✅ 최종 제출본 점검, 표준국어대사전 API 통합 및 3번 실시간 개입 퀴즈 버그 픽스 완료 |
+| M4 | 7/14 | ✅ 최종 제출본 점검, 표준국어대사전 API 통합, 3번 실시간 개입 퀴즈 버그 픽스, 및 단일 기사 내 퀴즈 생성 다양성(Temperature 및 동적 폴백 단어 매핑) 개선 완료 |
