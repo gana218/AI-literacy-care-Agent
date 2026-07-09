@@ -16,6 +16,7 @@ import React, { useEffect, useRef, useCallback } from 'react';
 import { useReadingStore } from '../../stores/readingStore';
 import HighlightText from './HighlightText';
 import TermTooltip from './TermTooltip';
+import SelectionLookup from './SelectionLookup';
 
 // ── 핵심 용어 사전 (6/30: ②번 RAG로 교체) ──────────────────────────
 const TERM_DICT: Record<string, string> = {
@@ -201,6 +202,41 @@ export const ReadingPane: React.FC = () => {
     [setDwellTime, sessionId, enqueueEvent]
   );
 
+  // ── 무동작(idle) 감지 → pause 이벤트 ──
+  // 웹은 가만히 있으면 스크롤/체류 이벤트가 발생하지 않아 집중도가 갱신되지 않던 문제 보완.
+  // 12초간 아무 활동이 없으면 pause 이벤트를 방출해 서버가 집중도를 떨어뜨리게 한다.
+  useEffect(() => {
+    if (!sessionId) return;
+    const IDLE_MS = 12000;
+    let timer: any;
+    const arm = () => {
+      clearTimeout(timer);
+      timer = setTimeout(() => {
+        enqueueEvent({
+          type: 'pause',
+          timestamp_ms: Date.now(),
+          position: useReadingStore.getState().progress / 100,
+        });
+        arm(); // 계속 무동작이면 반복 감지 (지속적 이탈 반영)
+      }, IDLE_MS);
+    };
+    const onActivity = () => arm();
+    arm();
+    document.addEventListener('scroll', onActivity, true);
+    document.addEventListener('wheel', onActivity, { passive: true });
+    document.addEventListener('mousemove', onActivity);
+    document.addEventListener('keydown', onActivity);
+    document.addEventListener('touchmove', onActivity, { passive: true });
+    return () => {
+      clearTimeout(timer);
+      document.removeEventListener('scroll', onActivity, true);
+      document.removeEventListener('wheel', onActivity);
+      document.removeEventListener('mousemove', onActivity);
+      document.removeEventListener('keydown', onActivity);
+      document.removeEventListener('touchmove', onActivity);
+    };
+  }, [sessionId, enqueueEvent]);
+
   return (
     <div
       style={{
@@ -211,6 +247,9 @@ export const ReadingPane: React.FC = () => {
         overflow: 'hidden',
       }}
     >
+      {/* 임의 단어 드래그 → 뜻 조회 위젯 */}
+      <SelectionLookup />
+
       {/* 기사 메타 헤더 */}
       <div style={{ padding: 'var(--space-6) var(--space-8) var(--space-4)' }}>
         <div style={{ marginBottom: 'var(--space-3)' }}>

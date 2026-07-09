@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from typing import Optional, List
 from datetime import datetime
 
@@ -29,6 +29,10 @@ class SessionFinishResponse(BaseModel):
     saved_events_count: int
 
 class EventItem(BaseModel):
+    # 웹은 payload.scrollVelocity 등 추가 필드를 함께 보낸다. 집중도 계산이
+    # 이 값을 읽을 수 있도록 정의되지 않은 필드도 버리지 않고 통과시킨다.
+    model_config = ConfigDict(extra="allow")
+
     type: str
     timestamp_ms: int
     duration_ms: Optional[int] = None

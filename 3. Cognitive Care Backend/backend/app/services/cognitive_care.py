@@ -1,45 +1,81 @@
 from typing import List, Dict, Any, Tuple
 
+def _scroll_velocity(event: Dict[str, Any]) -> float:
+    """스크롤 속도(px/s)를 이벤트에서 정규화해 읽는다.
+    - 확장(tracker.js): 최상위 velocity 미제공(대신 duration_ms=스크롤 간격)
+    - 웹(ReadingPane): metadata.payload.scrollVelocity 에 담겨 옴
+    """
+    v = event.get("velocity")
+    if v is None:
+        meta = event.get("metadata") or {}
+        payload = meta.get("payload") if isinstance(meta, dict) else None
+        if isinstance(payload, dict):
+            v = payload.get("scrollVelocity")
+    try:
+        return float(v) if v is not None else 0.0
+    except (TypeError, ValueError):
+        return 0.0
+
+
 def calculate_focus_score(events: List[Dict[str, Any]]) -> float:
     """
     행동 이벤트 리스트를 분석하여 0~100 사이의 실시간 집중도(Focus Score)를 계산합니다.
-    - 화면 이탈(blur) 1회당 기본 20점 감점 + 이탈 시간에 따른 비례 감점
-    - 너무 빠른 스크롤(300ms 미만 간격 혹은 duration) 시 5점 감점
+
+    "지금" 얼마나 몰입해 읽고 있는지를 나타내도록 **최근 이벤트 창(window)** 기준으로 산정한다.
+    (누적 합산은 세션이 길어질수록 무조건 낮아지고, 최근 행동 변화에 둔감해지므로 사용하지 않음)
+
+    감점 규칙(집중 저하 신호):
+      - blur(화면 이탈)         : 크게 감점 (이탈 시간 비례 추가)
+      - 빠른 스크롤(스키밍)      : 간격 250ms 미만 또는 속도 1500px/s 초과 시 감점
+      - pause(무동작·멍/이탈)    : 감점
+      - 과도한 dwell(한 단락 20초+ 정체) : 감점
+    정상 속도 스크롤·적정 정독·focus(복귀)는 감점하지 않아 몰입 시 높은 점수를 유지한다.
     """
     if not events:
         return 100.0
 
-    base_score = 100.0
-    penalty = 0.0
-    
-    for event in events:
+    # 최근 행동 위주로 현재 집중도를 산정 (실시간 반응성 확보)
+    recent = events[-12:]
+    score = 100.0
+
+    for event in recent:
         etype = event.get("type")
+
         if etype == "blur":
             duration = event.get("duration_ms")
             if duration is None:
-                duration = 1000
-            # 이탈 1회당 20점 기본 감점 + 1초당 2점 추가 감점
-            penalty += 20.0 + (duration / 1000.0) * 2.0
-            
+                duration = 3000
+            score -= 20.0 + min((duration / 1000.0) * 2.0, 15.0)
+
         elif etype == "scroll":
             duration = event.get("duration_ms")
-            if duration is not None and duration < 300:
-                penalty += 5.0
-            else:
-                velocity = event.get("velocity", 0)
-                # 빠른 스크롤 (예: 2000 px/s 이상) 1회당 0.5점 감점
-                if velocity > 2000:
-                    penalty += 0.5
-                
-        elif etype in ("pause", "dwell"):
-            duration = event.get("duration_ms")
-            if duration is None:
-                duration = 1000
-            # 체류 시간 1초당 0.5점 가점
-            penalty -= (duration / 1000.0) * 0.5
-                
-    final_score = base_score - penalty
-    return round(max(0.0, min(100.0, final_score)), 1)
+            velocity = _scroll_velocity(event)
+            too_fast_interval = duration is not None and duration < 250
+            too_fast_velocity = velocity > 1500
+            if too_fast_interval or too_fast_velocity:
+                # 스키밍(비정상적으로 빠른 스크롤): 실제로 읽지 않는 신호
+                # 1~2회는 소폭이지만, 지속되면 최근 창(window)을 채워 급격히 하락한다.
+                score -= 8.0
+
+        elif etype == "pause":
+            # 무동작이 임계 시간 이상 지속(멍때림·이탈)
+            score -= 18.0
+
+        elif etype == "dwell":
+            meta = event.get("metadata") or {}
+            payload = meta.get("payload") if isinstance(meta, dict) else None
+            dwell_ms = None
+            if isinstance(payload, dict):
+                dwell_ms = payload.get("dwellMs")
+            if dwell_ms is None:
+                dwell_ms = event.get("duration_ms") or 0
+            # 한 단락에 지나치게 오래 머무름 = 집중이 흐트러진 정체 상태
+            if dwell_ms > 20000:
+                score -= 12.0
+
+        # focus(복귀)·정상 스크롤·적정 dwell 은 감점하지 않음
+
+    return round(max(0.0, min(100.0, score)), 1)
 
 def determine_intervention(focus_score: float) -> Tuple[bool, str, str]:
     """
