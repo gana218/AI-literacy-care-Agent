@@ -107,7 +107,11 @@ export const ReadingPane: React.FC = () => {
     toggleGlossesInline,
     enqueueEvent,
     article,
+    showEasy,
+    toggleEasy,
   } = useReadingStore();
+
+  const hasEasy = !!article.contentEasy && article.contentEasy.length === article.content.length;
 
   const containerRef = useRef<HTMLDivElement>(null);
   const lastScrollY = useRef(0);
@@ -300,6 +304,31 @@ export const ReadingPane: React.FC = () => {
             >
               저자: {article.author} · 발행일: {article.publishedAt}
             </p>
+            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+            {hasEasy && (
+              <button
+                onClick={toggleEasy}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '6px 12px',
+                  fontSize: '12px',
+                  fontWeight: 600,
+                  color: showEasy ? 'white' : 'var(--color-growth, #12a150)',
+                  backgroundColor: showEasy ? 'var(--color-growth, #12a150)' : 'var(--color-growth-tint, #e7f6ec)',
+                  border: '1px solid var(--color-growth, #12a150)',
+                  borderRadius: 'var(--radius-full)',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease',
+                  outline: 'none',
+                  fontFamily: 'var(--font-sans)',
+                }}
+                title="2번 Content Reducer가 재구성한 쉬운 문장으로 전환"
+              >
+                <span>{showEasy ? '📄 원문 보기' : '🔤 쉬운 문장 보기'}</span>
+              </button>
+            )}
             <button
               onClick={toggleGlossesInline}
               style={{
@@ -331,6 +360,7 @@ export const ReadingPane: React.FC = () => {
             >
               <span>{showGlossesInline ? '📖 RAG AI 주석 상시 표시 중' : '💡 RAG AI 주석 상시 표시'}</span>
             </button>
+            </div>
           </div>
         </div>
         <hr style={{ borderColor: 'var(--color-border)', margin: '0' }} />
@@ -364,7 +394,7 @@ export const ReadingPane: React.FC = () => {
             <Paragraph
               key={index}
               index={index}
-              text={paragraph}
+              text={showEasy && hasEasy ? article.contentEasy![index] : paragraph}
               isHighlighted={highlightedParagraphs.includes(index)}
               onVisible={handleParagraphVisible}
             />

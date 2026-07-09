@@ -158,6 +158,25 @@ export default function ReadingPage() {
         // Zustand store 세션 연동 시작
         startSessionStore(sessionData.article.id, sessionData.sessionId);
 
+        // 업로드 모드: 백엔드(2번)가 재구성한 쉬운 문장(restructuredText)을 원문과 함께 저장
+        // → 리더의 '쉬운 문장 보기' 토글이 업로드한 문서에도 작동
+        if (isUpload) {
+          const chunks: any[] = (sessionData.article as any)?.chunks ?? [];
+          const originals = chunks.map((c) => c.originalText).filter(Boolean);
+          const easies = chunks.map((c) => c.restructuredText || c.originalText);
+          if (originals.length) {
+            useReadingStore.getState().setArticle({
+              id: sessionData.article.id ?? 'uploaded',
+              title: cfg.uploadedTitle ?? '내가 올린 문서',
+              category: '내 업로드',
+              author: '익명 업로드',
+              publishedAt: '방금',
+              content: originals,
+              contentEasy: easies,
+            });
+          }
+        }
+
         // 7/5 추가: AI RAG 설명 사전 프리페치
         const termsToPrefetch = [
           '디지털 리터러시',
