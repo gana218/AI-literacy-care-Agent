@@ -83,10 +83,7 @@ setInterval(() => {
 
 // 4. RAG Term Lookup (Hover/Double Click/Drag)
 function handleTextSelection(e) {
-  // 프론트엔드 대시보드(로컬)에서는 익스텐션 툴팁 작동 중지 (중복 렌더링 방지)
-  if (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1") {
-    return;
-  }
+  // 세션 없어도 단어 조회는 허용 (케어 시작 전에도 동작)
   
   // Ignore clicks inside the tooltip
   if (currentTooltip && currentTooltip.contains(e.target)) return;
@@ -103,16 +100,19 @@ function handleTextSelection(e) {
       let context = null;
       try {
         const anchorNode = selection.anchorNode;
-        if (anchorNode && anchorNode.textContent) {
-          // 해당 텍스트 노드의 전체 텍스트에서 선택된 단어가 속한 문장을 추출
-          const fullText = anchorNode.textContent;
-          // 단어 위치 찾기
-          const wordIndex = fullText.indexOf(selectedText);
-          if (wordIndex !== -1) {
-            // 앞뒤 100자 정도를 context로 활용
-            const start = Math.max(0, wordIndex - 60);
-            const end = Math.min(fullText.length, wordIndex + selectedText.length + 60);
-            context = fullText.slice(start, end).trim();
+        if (anchorNode) {
+          const parentEl = anchorNode.parentElement;
+          const fullText = parentEl ? (parentEl.innerText || parentEl.textContent) : anchorNode.textContent;
+          if (fullText) {
+            const wordIndex = fullText.indexOf(selectedText);
+            if (wordIndex !== -1) {
+              // 앞뒤 150자 정도를 context로 활용
+              const start = Math.max(0, wordIndex - 150);
+              const end = Math.min(fullText.length, wordIndex + selectedText.length + 150);
+              context = fullText.slice(start, end).trim();
+            } else {
+              context = fullText.slice(0, 300).trim();
+            }
           }
         }
       } catch (e) {
