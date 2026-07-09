@@ -103,61 +103,25 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
                     await websocket.send_text(json.dumps(nudge_response))
                     
                     if level == "hard":
-                        # Save and load session state from Redis to generate dynamic quiz
-                        state_raw = await redis_client.get(f"session:{session_id}:state")
-                        active_chunk = None
-                        if state_raw:
-                            session_state = json.loads(state_raw)
-                            chunks = session_state.get("chunks", [])
-                            if chunks:
-                                # Get progress and map to chunk index
-                                progress = front_event.get("payload", {}).get("progress", 0)
-                                chunk_idx = min(int(progress / 100 * len(chunks)), len(chunks) - 1)
-                                active_chunk = chunks[chunk_idx]
-
-                        if active_chunk:
-                            from ..agents.content_reducer.quiz_generator import generate_quiz
-                            chunk_id = active_chunk.get("chunk_id") or active_chunk.get("chunkId") or "chunk"
-                            context_text = active_chunk.get("restructured_text") or active_chunk.get("restructuredText") or active_chunk.get("original_text") or active_chunk.get("originalText") or ""
-                            
-                            quiz_data = generate_quiz(chunk_id, context_text)
-                            
-                            correct_opt_idx = quiz_data.get("correct_option", 1) - 1
-                            correct_opt_text = quiz_data.get("options", [""])[correct_opt_idx] if 0 <= correct_opt_idx < len(quiz_data.get("options", [])) else ""
-                            
-                            quiz_response = {
-                                "type": "quiz",
-                                "session_id": session_id,
-                                "payload": {
-                                    "quiz": {
-                                        "id": quiz_data.get("chunk_id", f"auto-quiz-{int(time.time())}"),
-                                        "question": quiz_data.get("question"),
-                                        "options": quiz_data.get("options"),
-                                        "correctOption": correct_opt_text,
-                                    }
-                                },
-                                "timestamp": int(time.time() * 1000)
-                            }
-                        else:
-                            quiz_response = {
-                                "type": "quiz",
-                                "session_id": session_id,
-                                "payload": {
-                                    "quiz": {
-                                        "id": f"auto-quiz-{int(time.time())}",
-                                        "question": "방금 읽은 내용의 핵심 주제는 무엇인가요?",
-                                        "options": [
-                                            "AI의 활용과 윤리",
-                                            "요리 레시피",
-                                            "운동 방법",
-                                            "여행 계획",
-                                        ],
-                                        "correctOption": "AI의 활용과 윤리",
-                                    }
-                                },
-                                "timestamp": int(time.time() * 1000)
-                            }
-                        await websocket.send_text(json.dumps(quiz_response, ensure_ascii=False))
+                        quiz_response = {
+                            "type": "quiz",
+                            "session_id": session_id,
+                            "payload": {
+                                "quiz": {
+                                    "id": f"auto-quiz-{int(time.time())}",
+                                    "question": "방금 읽은 내용의 핵심 주제는 무엇인가요?",
+                                    "options": [
+                                        "AI의 활용과 윤리",
+                                        "요리 레시피",
+                                        "운동 방법",
+                                        "여행 계획",
+                                    ],
+                                    "correctOption": "AI의 활용과 윤리",
+                                }
+                            },
+                            "timestamp": int(time.time() * 1000)
+                        }
+                        await websocket.send_text(json.dumps(quiz_response))
                 
             except json.JSONDecodeError:
                 await websocket.send_text(json.dumps({"type": "error", "payload": {"message": "Invalid JSON format"}}))

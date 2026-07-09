@@ -56,13 +56,6 @@ async def start_session(req: SessionStartRequest, request: Request, db: AsyncSes
     state = create_initial_state(session_id=session_id, user_id=req.userId, document_id=document_id, raw_text=mock_raw_text)
     updated_state = run_content_reducer(state)
     
-    # Save the updated state to Redis so that WebSocket can access the chunks and generate dynamic quizzes
-    redis_client = await get_redis()
-    try:
-        await redis_client.set(f"session:{session_id}:state", json.dumps(updated_state), ex=86400)
-    finally:
-        await redis_client.aclose()
-
     def map_term(t):
         return {"term": t["term"], "definition": t["definition"], "source": t["source"], "faithfulnessScore": t.get("faithfulness_score", 1.0), "chunkId": t["chunk_id"]}
 
@@ -171,16 +164,12 @@ async def finish_session(
             })
             
         # 3. 오케스트레이터(Role 1) 파이프라인 실행
-        state_raw = await redis_client.get(f"session:{session_id}:state")
-        if state_raw:
-            initial_state = json.loads(state_raw)
-        else:
-            initial_state = create_initial_state(
-                session_id=session_id,
-                user_id=session.user_id,
-                document_id=session.document_id,
-                raw_text="Sample Document Text"
-            )
+        initial_state = create_initial_state(
+            session_id=session_id,
+            user_id=session.user_id,
+            document_id=session.document_id,
+            raw_text="Sample Document Text"
+        )
         initial_state["reading_events"] = state_events
         final_state = run_reading_session(initial_state)
 
@@ -247,16 +236,12 @@ async def get_session_result(session_id: str, db: AsyncSession = Depends(get_db)
                     "metadata": ev.metadata_json
                 })
 
-        state_raw = await redis_client.get(f"session:{session_id}:state")
-        if state_raw:
-            initial_state = json.loads(state_raw)
-        else:
-            initial_state = create_initial_state(
-                session_id=session_id,
-                user_id=session.user_id,
-                document_id=session.document_id,
-                raw_text=""
-            )
+        initial_state = create_initial_state(
+            session_id=session_id,
+            user_id=session.user_id,
+            document_id=session.document_id,
+            raw_text=""
+        )
         initial_state["reading_events"] = state_events
         
         # Q1/Q2: Redis에서 실제 퀴즈 채점 결과 읽기 (stub 제거)
