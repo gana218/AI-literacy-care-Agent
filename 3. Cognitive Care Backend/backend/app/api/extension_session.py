@@ -213,12 +213,19 @@ async def get_session_result(session_id: str, db: AsyncSession = Depends(get_db)
                 metadata_json=data
             ))
         
-        initial_state = create_initial_state(session_id=session_id, user_id=session.user_id, document_id=session.document_id, raw_text="")
+        state_raw = await redis_client.get(f"session:{session_id}:state")
+        if state_raw:
+            initial_state = json.loads(state_raw)
+        else:
+            initial_state = create_initial_state(session_id=session_id, user_id=session.user_id, document_id=session.document_id, raw_text="")
         initial_state["reading_events"] = state_events
         initial_state["quiz_result"] = {"score": 85.0} # 5번 목업 연결점
         
-        # 1. 2번 모듈 초기 text/chunk 연산
-        updated_state = run_content_reducer(initial_state)
+        # 1. 2번 모듈 초기 text/chunk 연산 (기존 청크가 없을 때만 실행)
+        if "chunks" not in initial_state or not initial_state["chunks"]:
+            updated_state = run_content_reducer(initial_state)
+        else:
+            updated_state = initial_state
         
         # 임시 퀴즈 생성 로직 연동 (5번 모듈 대체)
         from ..agents.content_reducer.quiz_generator import generate_quiz

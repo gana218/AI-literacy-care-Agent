@@ -171,12 +171,16 @@ async def finish_session(
             })
             
         # 3. 오케스트레이터(Role 1) 파이프라인 실행
-        initial_state = create_initial_state(
-            session_id=session_id,
-            user_id=session.user_id,
-            document_id=session.document_id,
-            raw_text="Sample Document Text"
-        )
+        state_raw = await redis_client.get(f"session:{session_id}:state")
+        if state_raw:
+            initial_state = json.loads(state_raw)
+        else:
+            initial_state = create_initial_state(
+                session_id=session_id,
+                user_id=session.user_id,
+                document_id=session.document_id,
+                raw_text="Sample Document Text"
+            )
         initial_state["reading_events"] = state_events
         final_state = run_reading_session(initial_state)
 
@@ -243,12 +247,16 @@ async def get_session_result(session_id: str, db: AsyncSession = Depends(get_db)
                     "metadata": ev.metadata_json
                 })
 
-        initial_state = create_initial_state(
-            session_id=session_id,
-            user_id=session.user_id,
-            document_id=session.document_id,
-            raw_text=""
-        )
+        state_raw = await redis_client.get(f"session:{session_id}:state")
+        if state_raw:
+            initial_state = json.loads(state_raw)
+        else:
+            initial_state = create_initial_state(
+                session_id=session_id,
+                user_id=session.user_id,
+                document_id=session.document_id,
+                raw_text=""
+            )
         initial_state["reading_events"] = state_events
         
         # Q1/Q2: Redis에서 실제 퀴즈 채점 결과 읽기 (stub 제거)
