@@ -35,6 +35,5 @@ COPY --from=frontend /fe/dist ./frontend_dist
 EXPOSE 8000
 
 # DB/Redis 미제공 환경에서도 SQLite/InMemory로 자동 폴백 (lifespan에서 테이블 생성)
-# import 루트가 app.* 이므로 backend/ 에서 uvicorn 실행
-WORKDIR /app/backend
-CMD ["python", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# import 루트가 backend.app.* 이므로 폴더 루트(/app)에서 실행. run.py가 backend.app.main:app 을 0.0.0.0:8000으로 띄운다.
+CMD ["python", "run.py"]
