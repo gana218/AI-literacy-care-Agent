@@ -36,7 +36,7 @@ def _call_llm_via_snowchat(model: str, prompt: str, system_instruction: str | No
     payload = {
         "model": model,
         "messages": messages,
-        "max_tokens": 512,
+        "max_tokens": 2048,
         "temperature": 0.1
     }
 
@@ -74,7 +74,7 @@ def _query_gemini_llm(word: str, context: str | None = None) -> dict | None:
             )
 
         result = _call_llm_via_snowchat(
-            model="gemini-2.0-flash",
+            model="gemini-2.5-flash",
             prompt=prompt,
             system_instruction="당신은 친절하고 정확한 국어사전입니다."
         )

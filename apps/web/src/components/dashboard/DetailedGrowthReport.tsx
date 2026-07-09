@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   ResponsiveContainer,
@@ -17,6 +17,8 @@ import {
   Legend,
 } from 'recharts';
 import { Card } from '../common/Card';
+import { api, type GrowthReportResponse } from '../../lib/api';
+import { useSessionConfig } from '../../stores/sessionConfigStore';
 
 // ── 데이터 타입 정의 ──────────────────────────────────────────────────
 interface RadarDataPoint {
@@ -37,55 +39,6 @@ interface VocabularyWord {
   level: '상' | '중' | '하';
   status: 'completed' | 'review';
 }
-
-// ── 주간 데이터 ──────────────────────────────────────────────────────
-const weeklyRadarData: RadarDataPoint[] = [
-  { subject: '어휘력', before: 62, after: 84 },
-  { subject: '독해 속도', before: 55, after: 78 },
-  { subject: '정독율', before: 70, after: 88 },
-  { subject: '추론 능력', before: 65, after: 80 },
-  { subject: '집중 유지', before: 60, after: 92 },
-];
-
-const weeklyActivityData: ActivityDataPoint[] = [
-  { label: '월', time: 15, xp: 120 },
-  { label: '화', time: 22, xp: 180 },
-  { label: '수', time: 12, xp: 90 },
-  { label: '목', time: 28, xp: 240 },
-  { label: '금', time: 18, xp: 150 },
-  { label: '토', time: 35, xp: 320 },
-  { label: '일', time: 42, xp: 380 },
-];
-
-const weeklyWords: VocabularyWord[] = [
-  { word: '기각 (Dismissal)', meaning: '소송이나 신청이 법적 요건을 갖추지 못했거나 이유가 없다고 돌려보내는 일.', level: '상', status: 'completed' },
-  { word: '양형 (Sentencing)', meaning: '재판관이 형벌의 정도를 결정하는 일.', level: '중', status: 'completed' },
-  { word: '귀책사유 (Imputable Reason)', meaning: '법적 책임을 지울 수 있는 원인이나 과실.', level: '상', status: 'review' },
-  { word: '인과관계 (Causality)', meaning: '원인과 결과 사이의 관계.', level: '하', status: 'completed' },
-];
-
-// ── 월간 데이터 ──────────────────────────────────────────────────────
-const monthlyRadarData: RadarDataPoint[] = [
-  { subject: '어휘력', before: 58, after: 89 },
-  { subject: '독해 속도', before: 50, after: 82 },
-  { subject: '정독율', before: 65, after: 91 },
-  { subject: '추론 능력', before: 60, after: 85 },
-  { subject: '집중 유지', before: 55, after: 94 },
-];
-
-const monthlyActivityData: ActivityDataPoint[] = [
-  { label: '1주차', time: 78, xp: 680 },
-  { label: '2주차', time: 92, xp: 820 },
-  { label: '3주차', time: 110, xp: 1020 },
-  { label: '4주차', time: 145, xp: 1350 },
-];
-
-const monthlyWords: VocabularyWord[] = [
-  { word: '개정 (Revision)', meaning: '이미 정하였던 법령이나 규칙 따위를 고쳐서 다시 정함.', level: '하', status: 'completed' },
-  { word: '지적재산권 (IP)', meaning: '인간의 지적 창작물에 대해 법이 부여한 권리.', level: '중', status: 'completed' },
-  { word: '추상적 (Abstract)', meaning: '구체적이지 않고 일반적이거나 관념적인 것.', level: '하', status: 'completed' },
-  { word: '기속력 (Binding Force)', meaning: '법원이나 행정기관이 스스로 내린 결정에 구속되는 효력.', level: '상', status: 'review' },
-];
 
 // ── 커스텀 툴팁 ──────────────────────────────────────────────────────
 const CustomRadarTooltip = ({ active, payload }: any) => {
@@ -142,10 +95,32 @@ const CustomActivityTooltip = ({ active, payload, label }: any) => {
 
 export default function DetailedGrowthReport() {
   const [tab, setTab] = useState<'weekly' | 'monthly'>('weekly');
+  const [data, setData] = useState<GrowthReportResponse | null>(null);
+  const [loading, setLoading] = useState(true);
+  const userId = useSessionConfig((s) => s.userId);
 
-  const currentRadarData = tab === 'weekly' ? weeklyRadarData : monthlyRadarData;
-  const currentActivityData = tab === 'weekly' ? weeklyActivityData : monthlyActivityData;
-  const currentWords = tab === 'weekly' ? weeklyWords : monthlyWords;
+  useEffect(() => {
+    async function fetchData() {
+      if (!userId) return;
+      setLoading(true);
+      const res = await api.getGrowthReport(userId);
+      setData(res);
+      setLoading(false);
+    }
+    fetchData();
+  }, [userId]);
+
+  if (loading || !data) {
+    return (
+      <Card variant="default" className="p-6 space-y-6 flex justify-center items-center h-64">
+        <p className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>리포트 데이터를 불러오는 중...</p>
+      </Card>
+    );
+  }
+
+  const currentRadarData = tab === 'weekly' ? data.weekly.radarData : data.monthly.radarData;
+  const currentActivityData = tab === 'weekly' ? data.weekly.activityData : data.monthly.activityData;
+  const currentWords = tab === 'weekly' ? data.weekly.words : data.monthly.words;
 
   return (
     <Card variant="default" className="p-6 space-y-6">

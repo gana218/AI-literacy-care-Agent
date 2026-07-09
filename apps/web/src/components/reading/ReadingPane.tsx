@@ -123,7 +123,7 @@ export const ReadingPane: React.FC = () => {
 
     const scrollTop = el.scrollTop;
     const scrollHeight = el.scrollHeight - el.clientHeight;
-    const progress = scrollHeight > 0 ? Math.round((scrollTop / scrollHeight) * 100) : 0;
+    const progress = scrollHeight > 0 ? Math.round((scrollTop / scrollHeight) * 100) : 100;
     const clampedProgress = Math.min(100, Math.max(0, progress));
     setProgress(clampedProgress);
 

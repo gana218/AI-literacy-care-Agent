@@ -68,12 +68,20 @@ export const QuizCard: React.FC = () => {
 
   const currentQuiz = useMemo<QuizQuestion>(() => {
     if (activeQuiz) {
-      const correctIdx = activeQuiz.options.indexOf(activeQuiz.correctOption);
+      // correctOption이 숫자형(1-indexed)일 경우와 문자열일 경우 모두 지원
+      let correctIdx = 0;
+      if (typeof activeQuiz.correctOption === 'number') {
+        correctIdx = activeQuiz.correctOption > 0 ? activeQuiz.correctOption - 1 : 0;
+      } else {
+        const idx = activeQuiz.options.indexOf(activeQuiz.correctOption);
+        if (idx >= 0) correctIdx = idx;
+      }
+      
       return {
         id: activeQuiz.quizId,
         question: activeQuiz.question,
         options: activeQuiz.options,
-        correctIndex: correctIdx >= 0 ? correctIdx : 0,
+        correctIndex: correctIdx,
         explanation: activeQuiz.explanation || '정답입니다!',
         xpReward: 30,
       };

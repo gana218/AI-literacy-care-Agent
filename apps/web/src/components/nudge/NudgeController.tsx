@@ -36,26 +36,9 @@ export const NudgeController: React.FC = () => {
   const prevLevel = useRef<string>('none');
 
   useEffect(() => {
-    // 7/6 추가: WebSocket이 활성화 및 연결된 상태라면 서버의 개입 명령이 상태를 제어하므로
+    // 7/6 추가: 서버 개입 명령(REST/WS)이 상태를 제어하므로
     // 로컬에서의 자동 집중도 기반 넛지 판단은 바이패스(우회)합니다.
-    const wsClient = getActiveWsClient();
-    if (wsClient && wsClient.isConnected()) {
-      return;
-    }
-
-    const newLevel = scoreToNudgeLevel(focusScore);
-
-    // 레벨이 상승할 때만 Nudge 표시 (회복 중에는 재트리거 안 함)
-    if (newLevel !== 'none' && newLevel !== prevLevel.current) {
-      showNudge(newLevel as 'soft' | 'medium' | 'hard');
-    }
-
-    // 집중도가 80 이상 회복되면 Nudge 자동 해제
-    if (newLevel === 'none' && isNudgeVisible) {
-      dismissNudge();
-    }
-
-    prevLevel.current = newLevel;
+    // (backend polling in ReadingPage handles the logic)
   }, [focusScore, showNudge, dismissNudge, isNudgeVisible]);
 
   // nudgeLevel은 focusStore에서 관리되므로 여기서는 렌더만 담당

@@ -58,6 +58,12 @@ export default function ReadingPage() {
     const handleInterventionCommand = (command: any) => {
       if (!command) return;
       console.log('[ReadingPage] ← Received REST Intervention Command:', command);
+
+      // 모든 개입(명령) 응답에 포함된 집중도를 항상 UI에 동기화
+      if (command.payload && command.payload.focusScore !== undefined) {
+        setFocusScore(command.payload.focusScore);
+      }
+
       switch (command.type) {
         case 'nudge':
           if (command.payload.nudgeLevel) {
@@ -65,6 +71,7 @@ export default function ReadingPage() {
           }
           break;
         case 'quiz':
+          showNudge(command.payload.nudgeLevel || 'hard', command.payload.nudgeMessage);
           if (command.payload.quiz) {
             setActiveQuiz(command.payload.quiz);
             showQuiz();
@@ -77,12 +84,8 @@ export default function ReadingPage() {
           }
           break;
         case 'score_update':
-          if (command.payload.focusScore !== undefined) {
-            setFocusScore(command.payload.focusScore);
-          }
-          if (command.payload.progress !== undefined) {
-            setProgress(command.payload.progress);
-          }
+          // 집중도 외에 추가로 처리할 상태가 없다면 skip
+          // (백엔드의 max(positions) 기반 progress로 덮어쓰지 않도록 제거함)
           break;
         case 'session_end':
           if (currentSessionId) {

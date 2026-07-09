@@ -1,4 +1,4 @@
-﻿"""
+"""
 quiz_generator.py — 문맥 맞춤형 퀴즈 생성기 (M2)
 
 집중도 저하 등의 개입 상황이 발생했을 때,
@@ -165,28 +165,22 @@ def generate_quiz(chunk_id: str, context: str) -> QuizDict:
     if mode == "stub" or demo_mode:
         return _generate_demo_quiz(chunk_id, context)
 
-    # 2. Anthropic 클라이언트 확인
-    client = _get_client()
-    if client is None:
-        # API 키가 없으면 데모용 퀴즈 반환
-        return _generate_demo_quiz(chunk_id, context)
-
     try:
-        from google.genai import types
+        from backend.app.agents.content_reducer.snowchat_client import is_snowchat_available, _call_llm_via_snowchat
+        
+        if not is_snowchat_available():
+            # API 키가 없으면 데모용 퀴즈 반환
+            return _generate_demo_quiz(chunk_id, context)
 
-        # 퀴즈 생성에는 gemini-2.0-flash 모델을 무료로 사용
-        model = "gemini-2.0-flash"
+        # 퀴즈 생성에는 gemini-2.5-flash 모델을 기본으로 사용
+        model = "gemini-2.5-flash"
         prompt = build_quiz_prompt(context)
 
-        response = client.models.generate_content(
+        raw_content = _call_llm_via_snowchat(
             model=model,
-            contents=prompt,
-            config=types.GenerateContentConfig(
-                system_instruction=QUIZ_SYSTEM_PROMPT,
-            ),
+            prompt=prompt,
+            system_instruction=QUIZ_SYSTEM_PROMPT
         )
-
-        raw_content = response.text.strip()
         
         # JSON 블록 추출 파싱 ({ 로 시작해서 } 로 끝나는 부분 매칭)
         json_match = re.search(r"\{.*\}", raw_content, re.DOTALL)

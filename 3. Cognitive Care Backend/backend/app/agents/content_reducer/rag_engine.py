@@ -499,9 +499,10 @@ def _disambiguate_homonyms_heuristic(word: str, items: list, context: str) -> di
             
     return best_item
 
-def _disambiguate_homonyms_with_llm(word: str, items: list, context: str) -> dict:
+def _disambiguate_homonyms_with_llm(word: str, items: list, context: str) -> dict | None:
     """
     여러 개의 사전 정의 후보(동음이의어) 중 주어진 문맥에 가장 적합한 정의를 LLM으로 선택한다.
+    만약 모든 후보가 비유적 표현 등 문맥과 맞지 않는다면 None을 반환한다.
     """
     from backend.app.agents.content_reducer.snowchat_client import is_snowchat_available, _call_llm_via_snowchat
     if not is_snowchat_available():
@@ -522,17 +523,15 @@ def _disambiguate_homonyms_with_llm(word: str, items: list, context: str) -> dic
                 
         if not candidates:
             return items[0]
-            
-        if len(candidates) == 1:
-            return items[candidates[0][0]]
 
-        # 프롬프트 구성
+        # 프롬프트 구성 (후보가 1개여도 비유적 표현인지 검증하기 위해 LLM을 거칩니다)
         candidate_text = "\n".join([f"{idx+1}. {defn}" for idx, defn in enumerate([c[1] for c in candidates])])
         prompt = (
             f"단어: '{word}'\n"
             f"기사 문맥 (Context): {context}\n\n"
             f"사전 정의 후보 목록:\n{candidate_text}\n\n"
             f"위 문맥에서 단어 '{word}'가 사용된 문맥적 의미와 가장 일치하는 정의의 번호(1-{len(candidates)})만 하나 적어주세요. "
+            f"단, 만약 후보 중에 문맥(비유적 의미 등)과 일치하는 뜻이 단 하나도 없다면, 오직 숫자 0을 적어주세요.\n"
             f"다른 설명이나 부연 텍스트 없이 오직 숫자 하나만 출력하세요. 예: 1"
         )
         
@@ -547,7 +546,10 @@ def _disambiguate_homonyms_with_llm(word: str, items: list, context: str) -> dic
         # 숫자 추출
         match = re.search(r"\d+", response_text)
         if match:
-            idx = int(match.group(0)) - 1
+            idx = int(match.group(0))
+            if idx == 0:
+                return None  # 알맞은 뜻이 없음
+            idx -= 1
             if 0 <= idx < len(candidates):
                 best_idx = candidates[idx][0]
                 return items[best_idx]
@@ -593,8 +595,11 @@ def _query_woorimalsem_api(word: str, context: str | None = None) -> dict | None
             items = [items]
         if items:
             best_item = items[0]
-            if context and len(items) > 1:
+            if context:
                 best_item = _disambiguate_homonyms_with_llm(word, items, context)
+            
+            if best_item is None:
+                return None
 
             # sense가 리스트일 수도, 딕셔너리일 수도 있음 — 둘 다 안전하게 처리
             sense_raw = best_item.get("sense", {})
@@ -822,6 +827,11 @@ def lookup_term(word: str, context: str | None = None) -> TermDict:
                     _items = [_items]
                 if _items:
                     _item = _items[0]
+                    if context:
+                        _item = _disambiguate_homonyms_with_llm(w, _items, context)
+                    if _item is None:
+                        continue
+                        
                     _sense_raw = _item.get("sense", {})
                     if isinstance(_sense_raw, list):
                         _sense = _sense_raw[0] if _sense_raw else {}
@@ -843,8 +853,24 @@ def lookup_term(word: str, context: str | None = None) -> TermDict:
     else:
         tried.append("stdict_skipped_no_key")
 
-    # ※ LLM 실시간 유추 비활성화 — 사전 출처가 없는 단어는 조용히 미발견 처리
-    tried.append("llm_disabled_dict_only_mode")
+    # 4. LLM 실시간 유추 (사전에서 못 찾았거나 비유적 표현일 경우)
+    if context:
+        tried.append("llm_snowchat")
+        try:
+            from backend.app.agents.content_reducer.snowchat_client import _query_gemini_llm
+            llm_def = _query_gemini_llm(cleaned_word, context)
+            if llm_def:
+                return TermDict(
+                    term=llm_def.get("term", cleaned_word),
+                    definition=llm_def.get("definition", ""),
+                    source=llm_def.get("source", "LLM 문맥 유추"),
+                    faithfulness_score=1.0,
+                    chunk_id="",
+                    _meta={"tried": tried, "errors": errors}
+                )
+        except Exception as e:
+            errors["llm"] = str(e)
+            print(f"[rag_engine] LLM 문맥 유추 중 에러: {e}")
 
     # 5. 최종 미발견 폴백
     return TermDict(
