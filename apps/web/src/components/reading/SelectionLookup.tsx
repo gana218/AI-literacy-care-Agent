@@ -23,8 +23,7 @@ export default function SelectionLookup() {
   const [sel, setSel] = useState<SelInfo | null>(null);
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState<{ text: string; found: boolean } | null>(null);
-
+  const [result, setResult] = useState<{ text: string; found: boolean; source?: string } | null>(null);
   useEffect(() => {
     const onMouseUp = (e: MouseEvent) => {
       const targetEl = e.target as HTMLElement | null;
@@ -80,7 +79,7 @@ export default function SelectionLookup() {
     try {
       const res = await api.getTermDefinition(sessionId || '', sel.text, sel.context);
       if (res.explanation && res.source !== 'not_found') {
-        setResult({ text: res.explanation, found: true });
+        setResult({ text: res.explanation, found: true, source: res.source });
         setTermDefinition(sel.text, res.explanation);
       } else {
         setResult({
@@ -159,6 +158,11 @@ export default function SelectionLookup() {
           >
             {loading ? '⏳ AI가 뜻을 찾는 중…' : result?.text}
           </div>
+          {result?.found && result?.source && (
+            <div style={{ fontSize: 10, color: 'var(--color-text-muted)', textAlign: 'right', marginTop: 4 }}>
+              [출처] {result.source}
+            </div>
+          )}
           <div
             style={{
               display: 'flex',

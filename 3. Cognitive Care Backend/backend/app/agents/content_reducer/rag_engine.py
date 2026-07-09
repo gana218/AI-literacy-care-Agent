@@ -25,6 +25,7 @@ import json
 import math
 import os
 import re
+import urllib.request
 from pathlib import Path
 
 from backend.app.agents.content_reducer.contracts import ChunkDict, TermDict
@@ -459,18 +460,62 @@ def get_faithfulness_summary(terms: list[TermDict]) -> dict:
     }
 
 
+def _disambiguate_homonyms_heuristic(word: str, items: list, context: str) -> dict:
+    """
+    LLM API 호출 실패 시(429 한도 초과 등) 작동하는 비상용 동음이의어 판별 휴리스틱 알고리즘.
+    문맥 단어 교집합과 뜻풀이의 길이를 종합하여 가장 그럴듯한 의미를 선택한다.
+    """
+    if not context or len(items) <= 1:
+        return items[0]
+        
+    best_item = items[0]
+    max_score = -1.0
+    
+    # 문맥에서 2글자 이상인 형태소/단어 후보 추출
+    context_words = set(w for w in re.findall(r'[가-힣A-Za-z]+', context) if len(w) >= 2)
+    
+    for item in items[:5]: # 상위 5개 후보만
+        sense_raw = item.get("sense", {})
+        if isinstance(sense_raw, list):
+            sense = sense_raw[0] if sense_raw else {}
+        else:
+            sense = sense_raw
+        defn = sense.get("definition", "")
+        defn_clean = re.sub(r"<[^>]*>", "", defn).strip()
+        defn_words = set(w for w in re.findall(r'[가-힣A-Za-z]+', defn_clean) if len(w) >= 2)
+        
+        # 1. 겹치는 단어 수 (핵심 문맥 매칭)
+        overlap_score = len(context_words.intersection(defn_words))
+        
+        # 2. 뜻풀이 길이 가중치 (일반적으로 빈도수가 높은 대중적 단어일수록 사전 정의가 길고 자세함)
+        # 최대 0.9점의 보너스 점수 부여
+        length_bonus = min(len(defn_clean) / 100.0, 0.9)
+        
+        total_score = overlap_score + length_bonus
+        
+        if total_score > max_score:
+            max_score = total_score
+            best_item = item
+            
+    return best_item
+
 def _disambiguate_homonyms_with_llm(word: str, items: list, context: str) -> dict:
     """
     여러 개의 사전 정의 후보(동음이의어) 중 주어진 문맥에 가장 적합한 정의를 LLM으로 선택한다.
     """
     from backend.app.agents.content_reducer.snowchat_client import is_snowchat_available, _call_llm_via_snowchat
     if not is_snowchat_available():
-        return items[0]
+        return _disambiguate_homonyms_heuristic(word, items, context)
 
     try:
         candidates = []
         for i, item in enumerate(items[:5]): # 최대 5개 후보
-            defn = item.get("sense", {}).get("definition", "")
+            sense_raw = item.get("sense", {})
+            if isinstance(sense_raw, list):
+                sense = sense_raw[0] if sense_raw else {}
+            else:
+                sense = sense_raw
+            defn = sense.get("definition", "")
             defn = re.sub(r"<[^>]*>", "", defn).strip()
             if defn:
                 candidates.append((i, defn))
@@ -507,9 +552,10 @@ def _disambiguate_homonyms_with_llm(word: str, items: list, context: str) -> dic
                 best_idx = candidates[idx][0]
                 return items[best_idx]
     except Exception as e:
-        print(f"[rag_engine] 동음이의어 LLM 판별 실패: {e}")
+        print(f"[rag_engine] 동음이의어 LLM 판별 실패 (429 등): {e}. Fallback to heuristic.")
+        return _disambiguate_homonyms_heuristic(word, items, context)
         
-    return items[0]
+    return _disambiguate_homonyms_heuristic(word, items, context)
 
 
 def _query_woorimalsem_api(word: str, context: str | None = None) -> dict | None:

@@ -6,58 +6,55 @@ import urllib.request
 _GEMINI_API_BASE = "https://generativelanguage.googleapis.com/v1beta/models"
 
 def is_snowchat_available() -> bool:
-    api_key = os.getenv("GEMINI_API_KEY", "") or os.getenv("SNOWCHAT_API_KEY", "")
+    api_key = (os.getenv("GEMINI_API_KEY", "") or os.getenv("SNOWCHAT_API_KEY", "")).strip()
     if not api_key or api_key.startswith("your_"):
         return False
     return True
 
 def _call_llm_via_snowchat(model: str, prompt: str, system_instruction: str | None = None) -> str:
     """
-    팀원의 코드가 이 함수를 사용하므로 인터페이스를 유지합니다.
-    내부적으로는 구글 Gemini REST API를 직접 호출합니다.
+    Mindlogic SnowChat API Gateway를 통해 LLM을 호출한다.
     """
-    api_key = os.getenv("GEMINI_API_KEY", "") or os.getenv("SNOWCHAT_API_KEY", "")
+    api_key = (os.getenv("GEMINI_API_KEY", "") or os.getenv("SNOWCHAT_API_KEY", "")).strip()
+    if not api_key or api_key.startswith("your_"):
+        raise ValueError("SnowChat API key is not configured.")
 
-    url = f"{_GEMINI_API_BASE}/gemini-2.0-flash:generateContent?key={api_key}"
+    url = "https://factchat-cloud.mindlogic.ai/v1/gateway/chat/completions"
+    user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 
-    contents = []
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json",
+        "User-Agent": user_agent
+    }
+
+    messages = []
     if system_instruction:
-        contents.append({
-            "role": "user",
-            "parts": [{"text": f"[시스템 지시] {system_instruction}\n\n{prompt}"}]
-        })
-    else:
-        contents.append({
-            "role": "user",
-            "parts": [{"text": prompt}]
-        })
+        messages.append({"role": "system", "content": system_instruction})
+    messages.append({"role": "user", "content": prompt})
 
     payload = {
-        "contents": contents,
-        "generationConfig": {
-            "maxOutputTokens": 512,
-            "temperature": 0.1,
-            "stopSequences": []
-        }
+        "model": model,
+        "messages": messages,
+        "max_tokens": 512,
+        "temperature": 0.1
     }
 
     req = urllib.request.Request(
         url,
         data=json.dumps(payload).encode("utf-8"),
-        headers={"Content-Type": "application/json"},
+        headers=headers,
         method="POST"
     )
 
     with urllib.request.urlopen(req, timeout=15) as response:
         res_data = json.loads(response.read().decode("utf-8"))
-        candidates = res_data.get("candidates", [])
-        if candidates:
-            parts = candidates[0].get("content", {}).get("parts", [])
-            if parts:
-                text = parts[0].get("text", "").strip()
-                return text
+        choices = res_data.get("choices", [])
+        if choices:
+            content = choices[0].get("message", {}).get("content", "")
+            return content.strip()
 
-    raise ValueError("Empty response from Gemini API.")
+    raise ValueError("Empty response from SnowChat API.")
 
 def _query_gemini_llm(word: str, context: str | None = None) -> dict | None:
     if not is_snowchat_available():

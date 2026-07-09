@@ -83,7 +83,10 @@ setInterval(() => {
 
 // 4. RAG Term Lookup (Hover/Double Click/Drag)
 function handleTextSelection(e) {
-  // 세션 없어도 단어 조회는 허용 (케어 시작 전에도 동작)
+  // 프론트엔드 대시보드(로컬)에서는 익스텐션 툴팁 작동 중지 (중복 렌더링 방지)
+  if (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1") {
+    return;
+  }
   
   // Ignore clicks inside the tooltip
   if (currentTooltip && currentTooltip.contains(e.target)) return;
