@@ -75,21 +75,14 @@ function calcComprehension(results: QuizResult[]): number {
 
 // ── Zustand Store ─────────────────────────────────────────────────────
 export const useScoreStore = create<ScoreState>((set, get) => ({
-  literacyScore: 87,
-  comprehensionScore: 82,
-  engagementScore: 91,
-  xp: 265,
-  level: 2,
-  levelProgress: 65,
-  scoreSeries: mockScoreSeries.map((d) => ({
-    label: d.day,
-    before: d.beforeCare,
-    after: d.afterCare,
-  })),
-  badges: [
-    { id: 'first-read',   name: '첫 완독',    emoji: '📚', description: '첫 번째 글을 끝까지 읽었어요!', acquiredAt: new Date().toISOString() },
-    { id: 'focus-master', name: '초집중 리더', emoji: '⚡', description: '평균 집중도 90% 이상 달성!',      acquiredAt: new Date().toISOString() },
-  ],
+  literacyScore: 0,
+  comprehensionScore: 0,
+  engagementScore: 0,
+  xp: 0,
+  level: 1,
+  levelProgress: 0,
+  scoreSeries: [],
+  badges: [],
   quizResults: [],
   isFinalized: false,
 
