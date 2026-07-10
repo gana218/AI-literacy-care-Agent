@@ -22,7 +22,7 @@ export default function SignUpPage() {
 
     try {
       await signUp(email, password, nickname);
-      // 회원가입 성공 시 가상 온보딩(캘리브레이션 단계)을 위해 온보딩으로 이동
+      // 회원가입 성공 시 튜토리얼 및 속도 측정을 위해 /onboarding으로 이동
       navigate('/onboarding', { replace: true });
     } catch (err) {
       // 에러는 스토어 내부에서 set하므로 무시
