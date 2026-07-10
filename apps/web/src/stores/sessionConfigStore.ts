@@ -7,6 +7,7 @@ import { create } from 'zustand';
 
 const UID_KEY = 'literacy_uid';
 const CONSENT_KEY = 'literacy_consent';
+const BASELINE_KEY = 'literacy_baseline';
 
 function loadUserId(): string | null {
   try {
@@ -14,6 +15,22 @@ function loadUserId(): string | null {
   } catch {
     return null;
   }
+}
+
+/** 온보딩 캘리브레이션에서 측정한 개인별 기준 스크롤 속도 로드 */
+function loadBaseline(): { easy: number; hard: number } | null {
+  try {
+    const raw = localStorage.getItem(BASELINE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (typeof parsed.easy === 'number' && typeof parsed.hard === 'number') {
+        return parsed;
+      }
+    }
+  } catch {
+    /* noop */
+  }
+  return null;
 }
 
 function loadConsent(): boolean {
@@ -41,8 +58,15 @@ interface SessionConfigState {
   uploadedTitle: string | null;
   uploadedContent: string[] | null; // 단락 배열
 
+  /** 온보딩 캘리브레이션 — 개인별 기준 스크롤 속도 (px/ms) */
+  baselineScrollSpeed: { easy: number; hard: number } | null;
+  /** 캘리브레이션 완료 여부 */
+  isCalibrated: boolean;
+
   /** 익명 UUID 발급(최초 1회) + 동의 저장. 발급된 userId 반환 */
   onboard: () => string;
+  /** 캘리브레이션 결과 저장 */
+  setBaseline: (easy: number, hard: number) => void;
   setMode: (m: CareMode) => void;
   setUpload: (title: string, content: string[]) => void;
   clearUpload: () => void;
@@ -55,6 +79,8 @@ export const useSessionConfig = create<SessionConfigState>((set, get) => ({
   mode: 'care',
   uploadedTitle: null,
   uploadedContent: null,
+  baselineScrollSpeed: loadBaseline(),
+  isCalibrated: loadBaseline() !== null,
 
   onboard: () => {
     let uid = get().userId;
@@ -80,10 +106,21 @@ export const useSessionConfig = create<SessionConfigState>((set, get) => ({
     set({ mode: 'upload', uploadedTitle, uploadedContent }),
   clearUpload: () => set({ mode: 'care', uploadedTitle: null, uploadedContent: null }),
 
+  setBaseline: (easy, hard) => {
+    const baseline = { easy: parseFloat(easy.toFixed(3)), hard: parseFloat(hard.toFixed(3)) };
+    try {
+      localStorage.setItem(BASELINE_KEY, JSON.stringify(baseline));
+    } catch {
+      /* noop */
+    }
+    set({ baselineScrollSpeed: baseline, isCalibrated: true });
+  },
+
   reset: () => {
     try {
       localStorage.removeItem(UID_KEY);
       localStorage.removeItem(CONSENT_KEY);
+      localStorage.removeItem(BASELINE_KEY);
     } catch {
       /* noop */
     }
@@ -93,6 +130,8 @@ export const useSessionConfig = create<SessionConfigState>((set, get) => ({
       mode: 'care',
       uploadedTitle: null,
       uploadedContent: null,
+      baselineScrollSpeed: null,
+      isCalibrated: false,
     });
   },
 }));

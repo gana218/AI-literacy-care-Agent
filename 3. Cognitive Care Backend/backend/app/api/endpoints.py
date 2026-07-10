@@ -42,6 +42,18 @@ async def start_session(req: SessionStartRequest, request: Request, db: AsyncSes
     db.add(new_session)
     await db.commit()
     
+    # 7/10: 온보딩 캘리브레이션 baselineScrollSpeed를 Redis에 보관
+    redis_client = await get_redis()
+    try:
+        if req.baselineScrollSpeed:
+            baseline_val = {
+                "easy": req.baselineScrollSpeed.easy,
+                "hard": req.baselineScrollSpeed.hard
+            }
+            await redis_client.set(f"session:{session_id}:baseline", json.dumps(baseline_val))
+    finally:
+        await redis_client.aclose()
+
     host = request.headers.get("host", "localhost:8000")
     ws_endpoint = f"ws://{host}/ws/reading/{session_id}"
     
@@ -104,7 +116,16 @@ async def process_events(session_id: str, req: EventsRequestModel):
                 "metadata": data
             })
 
-        focus_score = calculate_focus_score(reading_events)
+        # 7/10: 온보딩 캘리브레이션 baseline 로드
+        baseline_raw = await redis_client.get(f"session:{session_id}:baseline")
+        baseline = None
+        if baseline_raw:
+            try:
+                baseline = json.loads(baseline_raw)
+            except Exception:
+                pass
+
+        focus_score = calculate_focus_score(reading_events, baseline)
         intervention_needed, intervention_level, msg = determine_intervention(focus_score)
         
         level_to_type = {"none": "none", "soft": "highlight", "medium": "nudge", "hard": "quiz"}

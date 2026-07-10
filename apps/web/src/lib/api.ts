@@ -27,6 +27,7 @@ export interface StartSessionRequest {
   userId: string;
   content?: string[];          // 크롬 확장 프로그램용: 페이지 긁어온 텍스트
   source?: any;                // 크롬 확장 프로그램용: 메타데이터
+  baselineScrollSpeed?: { easy: number; hard: number };
 }
 
 export interface StartSessionResponse {

@@ -133,8 +133,8 @@ export const ReadingPane: React.FC = () => {
 
     const now = Date.now();
     const deltaY = Math.abs(scrollTop - lastScrollY.current);
-    const deltaT = (now - lastScrollTime.current) / 1000; // seconds
-    const velocity = deltaT > 0 ? Math.round(deltaY / deltaT) : 0;
+    const deltaT = now - lastScrollTime.current; // ms
+    const velocity = deltaT > 0 ? parseFloat((deltaY / deltaT).toFixed(3)) : 0.0;
     setScrollVelocity(velocity);
 
     // ── 7/8 REST Events Queue 적재 (150ms 단위 스로틀링 적용) ──

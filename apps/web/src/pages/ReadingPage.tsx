@@ -150,6 +150,7 @@ export default function ReadingPage() {
           articleId: isUpload ? 'uploaded' : 'default-article',
           userId: cfg.userId ?? 'u_anon_guest',
           content: isUpload ? cfg.uploadedContent! : undefined,
+          baselineScrollSpeed: cfg.baselineScrollSpeed ?? undefined,
         });
 
         if (!active) return;
@@ -262,7 +263,7 @@ export default function ReadingPage() {
 
           {/* 완독 전: 안내 카드 */}
           {!isFinished && (
-            <Card variant="flat" className="p-4">
+            <Card variant="flat" className="p-4 space-y-2">
               <p
                 className="text-xs"
                 style={{
@@ -277,6 +278,25 @@ export default function ReadingPage() {
                 스크롤할수록 Literacy Score가 실시간 계산됩니다. 25%/50%/75%/90%/완독 구간마다 대시보드 차트에 새 포인트가 추가됩니다.
                 우측 패널 [집중도 시뮬]로 넛지→퀴즈 흐름을 시연하면, 퀴즈 결과도 즉시 점수에 반영됩니다.
               </p>
+              <div 
+                className="text-[11px] border-t border-dashed pt-2 mt-2 space-y-1"
+                style={{
+                  color: 'var(--color-text-muted)',
+                  borderColor: 'var(--color-border)',
+                  fontFamily: 'var(--font-sans)',
+                  lineHeight: '1.4',
+                }}
+              >
+                <span className="font-semibold block" style={{ color: 'var(--color-text-secondary)' }}>
+                  ⚠️ 집중도(Focus Score) 측정의 조작적 정의 & 한계 명시
+                </span>
+                <p>
+                  • 본 서비스에서의 <b>"집중"</b>이란 브라우저 활성화(Foreground) 상태, 개인 스크롤 baseline 기준 속도 준수, 단락 체류 안정성(2~20초)을 만족하는 독서 행동입니다.
+                </p>
+                <p>
+                  • <b>측정 제한사항:</b> 창 이탈(Blur)은 전화 수신 등의 시스템 알림도 포함되어 감점될 수 있으며, 외부 단어 검색을 위한 이탈은 시스템이 의도를 인지하지 못해 이탈 감점 처리됩니다. (향후 인앱 단어 사전 완비로 보완 예정)
+                </p>
+              </div>
             </Card>
           )}
         </div>
