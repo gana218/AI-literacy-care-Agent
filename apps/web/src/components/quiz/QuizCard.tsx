@@ -153,7 +153,7 @@ export const QuizCard: React.FC = () => {
             style={{
               position: 'fixed',
               inset: 0,
-              backgroundColor: 'rgba(33,31,27,0.55)',
+              backgroundColor: 'rgba(42, 36, 33, 0.45)',
               backdropFilter: 'blur(4px)',
               zIndex: 'calc(var(--z-quiz) - 1)' as unknown as number,
             }}
@@ -252,20 +252,20 @@ export const QuizCard: React.FC = () => {
 
                       let bg = 'var(--color-surface)';
                       let border = 'var(--color-border)';
-                      let textColor = isO ? '#2563eb' : '#dc2626';
+                      let textColor = isO ? 'var(--color-primary)' : 'var(--color-nudge-medium)';
                       let emoji = isO ? '⭕' : '❌';
 
                       if (revealed) {
                         if (isCorrectOption) {
-                          bg = '#d1fae5'; border = '#10b981'; textColor = '#065f46';
+                          bg = 'var(--color-growth-tint)'; border = 'var(--color-growth)'; textColor = 'var(--color-text)';
                         } else if (isSelected && !isCorrectOption) {
-                          bg = '#fee2e2'; border = '#ef4444'; textColor = '#991b1b';
+                          bg = 'var(--color-nudge-medium-tint)'; border = 'var(--color-nudge-medium)'; textColor = 'var(--color-text)';
                         } else {
                           textColor = 'var(--color-text-muted)';
                         }
                       } else if (isSelected) {
-                        bg = isO ? '#dbeafe' : '#fee2e2';
-                        border = isO ? '#2563eb' : '#dc2626';
+                        bg = isO ? 'var(--color-primary-tint)' : 'var(--color-nudge-medium-tint)';
+                        border = isO ? 'var(--color-primary)' : 'var(--color-nudge-medium)';
                       }
 
                       let animProps = {};
@@ -331,9 +331,9 @@ export const QuizCard: React.FC = () => {
 
                     if (revealed) {
                       if (isCorrectOption) {
-                        bg = '#d1fae5'; border = '#10b981'; textColor = '#065f46';
+                        bg = 'var(--color-growth-tint)'; border = 'var(--color-growth)'; textColor = 'var(--color-text)';
                       } else if (isSelected && !isCorrectOption) {
-                        bg = '#fee2e2'; border = '#ef4444'; textColor = '#991b1b';
+                        bg = 'var(--color-nudge-medium-tint)'; border = 'var(--color-nudge-medium)'; textColor = 'var(--color-text)';
                       }
                     } else if (isSelected) {
                       bg = 'var(--color-primary-tint)';
@@ -389,7 +389,7 @@ export const QuizCard: React.FC = () => {
                             width: '22px',
                             height: '22px',
                             borderRadius: '50%',
-                            backgroundColor: revealed && isCorrectOption ? '#10b981' : revealed && isSelected ? '#ef4444' : 'var(--color-surface-alt)',
+                            backgroundColor: revealed && isCorrectOption ? 'var(--color-growth)' : revealed && isSelected ? 'var(--color-nudge-medium)' : 'var(--color-surface-alt)',
                             border: '1px solid var(--color-border)',
                             display: 'flex',
                             alignItems: 'center',
@@ -422,8 +422,8 @@ export const QuizCard: React.FC = () => {
                         style={{
                           padding: 'var(--space-4)',
                           borderRadius: 'var(--radius-md)',
-                          backgroundColor: phase === 'correct' ? '#f0fdf4' : '#fef2f2',
-                          border: `1px solid ${phase === 'correct' ? '#bbf7d0' : '#fecaca'}`,
+                          backgroundColor: phase === 'correct' ? 'var(--color-growth-tint)' : 'var(--color-nudge-medium-tint)',
+                          border: '1px solid var(--color-border)',
                           marginBottom: 'var(--space-4)',
                         }}
                       >
@@ -431,7 +431,7 @@ export const QuizCard: React.FC = () => {
                           style={{
                             fontSize: 'var(--text-sm)',
                             fontWeight: 'var(--weight-semibold)' as unknown as number,
-                            color: phase === 'correct' ? '#065f46' : '#991b1b',
+                            color: 'var(--color-text)',
                             fontFamily: 'var(--font-sans)',
                             marginBottom: '6px',
                           }}

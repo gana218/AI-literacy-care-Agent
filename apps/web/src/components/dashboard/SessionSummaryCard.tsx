@@ -50,7 +50,7 @@ export const SessionSummaryCard: React.FC<SessionSummaryCardProps> = ({ isVisibl
         >
           {/* 상단 배너 */}
           <div style={{
-            background: `linear-gradient(135deg, var(--color-primary) 0%, var(--color-comprehension) 100%)`,
+            background: `linear-gradient(135deg, var(--color-growth) 0%, var(--color-primary) 100%)`,
             padding: 'var(--space-5) var(--space-6)',
             color: '#fff',
           }}>

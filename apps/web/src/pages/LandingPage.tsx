@@ -55,11 +55,11 @@ export default function LandingPage() {
           </div>
         </div>
 
-        <h1 className="text-2xl font-bold mb-1" style={{ letterSpacing: 'var(--tracking-kr)' }}>
+        <h1 className="text-3xl font-bold mb-2" style={{ fontFamily: 'var(--font-serif)', letterSpacing: 'var(--tracking-kr)', color: 'var(--color-text)' }}>
           어떻게 케어를 시작할까요?
         </h1>
-        <p className="text-sm mb-8" style={{ color: 'var(--color-text-secondary)' }}>
-          읽을 콘텐츠를 고르면 실시간으로 집중도를 측정하고 맞춤 개입을 제공합니다.
+        <p className="text-sm mb-8" style={{ color: 'var(--color-text-secondary)', fontFamily: 'var(--font-sans)', lineHeight: 'var(--leading-normal)' }}>
+          읽을 콘텐츠를 보관함에 등록하고 케어를 시작해 보세요. 실시간 집중도를 측정하고 독해 넛지와 퀴즈 개입을 제공합니다.
         </p>
 
         {/* 가로 1:1 대칭 배치 모드 카드 2열 */}

@@ -352,7 +352,7 @@ export const ReadingPane: React.FC = () => {
               }}
               onMouseEnter={(e) => {
                 if (!showGlossesInline) {
-                  e.currentTarget.style.backgroundColor = 'rgba(130, 87, 230, 0.2)';
+                  e.currentTarget.style.backgroundColor = 'var(--color-primary-tint)';
                 }
               }}
               onMouseLeave={(e) => {
@@ -388,7 +388,10 @@ export const ReadingPane: React.FC = () => {
           style={{
             marginInline: 'auto',
             paddingTop: 'var(--space-6)',
-            fontFamily: 'var(--font-sans)',
+            fontFamily: 'var(--font-serif)',
+            fontSize: 'var(--text-reading)',
+            lineHeight: 'var(--leading-reading)',
+            maxWidth: '680px',
             color: 'var(--color-text)',
             letterSpacing: 'var(--tracking-kr)',
           }}

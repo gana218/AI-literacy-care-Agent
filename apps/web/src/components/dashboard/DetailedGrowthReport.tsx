@@ -266,7 +266,7 @@ export default function DetailedGrowthReport() {
                       yAxisId="left"
                       dataKey="time"
                       name="독해 시간"
-                      fill="var(--color-engagement)"
+                      fill="var(--color-primary)"
                       radius={[4, 4, 0, 0]}
                       maxBarSize={30}
                     />
@@ -275,9 +275,9 @@ export default function DetailedGrowthReport() {
                       type="monotone"
                       dataKey="xp"
                       name="획득 XP"
-                      stroke="var(--color-xp)"
+                      stroke="var(--color-growth)"
                       strokeWidth={2.5}
-                      dot={{ fill: 'var(--color-xp)', r: 4, stroke: 'var(--color-surface)', strokeWidth: 1.5 }}
+                      dot={{ fill: 'var(--color-growth)', r: 4, stroke: 'var(--color-surface)', strokeWidth: 1.5 }}
                       activeDot={{ r: 6 }}
                     />
                   </ComposedChart>
