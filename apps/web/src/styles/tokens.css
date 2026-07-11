@@ -1,8 +1,8 @@
 :root {
   /* 12대 핵심 디자인 토큰 (ref-reading.png 및 사용자 명세 기반) */
-  --bg-base: #FAF8F3;        /* 앱 기본 배경 (웜 크림) */
-  --bg-paper: #FDFCF9;       /* 카드·읽기 지문 배경 (페이퍼) */
-  --bg-sunken: #F3F0E9;      /* 입력창·비활성 영역 */
+  --bg-base: #F8F4EA;        /* 한층 더 고풍스럽고 따뜻한 웜 샌드/크림 */
+  --bg-paper: rgba(253, 252, 249, 0.88);  /* 88% 페이퍼 글래스 (반투명 카드 효과 극대화) */
+  --bg-sunken: rgba(240, 236, 227, 0.6);   /* 반투명 썬큰 영역 */
 
   --text-primary: #2A2724;   /* 웜 차콜 */
   --text-secondary: #6B655C;
@@ -12,8 +12,8 @@
   --accent-growth: #7A8B6F;  /* 성장·완독·정답 (세이지 그린) */
   --accent-warm: #C77D4F;    /* 하이라이트·보상·오답 피드백 (테라코타/앰버) */
 
-  --border-soft: #E8E3D9;
-  --shadow-soft: 0 2px 16px rgba(42, 39, 36, 0.06);
+  --border-soft: rgba(232, 227, 217, 0.7); /* 반투명 보더 */
+  --shadow-soft: 0 4px 20px rgba(42, 39, 36, 0.04);
   --radius-card: 14px;
   --radius-button: 10px;
 

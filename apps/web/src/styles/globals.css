@@ -117,3 +117,8 @@
     font-size: var(--text-reading);
   }
 }
+
+/* 7/11: ref-reading.png 분위기의 반투명 페이퍼 글래스 필터 레이어 전역 주입 */
+.rounded-xl, .rounded-lg, .rounded-\[var\(--radius-md\)\], [style*="var(--color-surface)"] {
+  backdrop-filter: blur(12px) saturate(120%);
+}
