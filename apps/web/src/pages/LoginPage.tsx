@@ -31,7 +31,7 @@ export default function LoginPage() {
   return (
     <div
       className="min-h-screen flex items-center justify-center px-4 py-10"
-      style={{ backgroundColor: 'var(--color-bg)', color: 'var(--color-text)', fontFamily: 'var(--font-sans)' }}
+      style={{ color: 'var(--color-text)', fontFamily: 'var(--font-sans)' }}
     >
       <div
         className="w-full max-w-md rounded-2xl border p-8"
