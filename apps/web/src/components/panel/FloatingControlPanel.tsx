@@ -5,7 +5,6 @@ import { useScoreStore } from '../../stores/scoreStore';
 import LevelBar from '../gamification/LevelBar';
 import XpCounter from '../gamification/XpCounter';
 import BadgeShelf from '../gamification/BadgeShelf';
-import { getActiveWsClient } from '../../lib/ws';
 
 // 집중도 수치에 따른 색상 매핑
 function getFocusColor(score: number): string {
