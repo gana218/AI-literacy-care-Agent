@@ -1,15 +1,11 @@
+from backend.evaluation.evaluation_pipeline import (
+    run_evaluation_pipeline
+)
+
 def test_full_pipeline():
-    raw_text = "머신러닝은 데이터를 통해 학습한다."
 
-    simplified_text = raw_text
+    result = run_evaluation_pipeline()
 
-    quiz = "머신러닝은 무엇을 통해 학습하는가?"
-
-    answer = "데이터"
-
-    literacy_score = 90
-
-    assert simplified_text is not None
-    assert quiz != ""
-    assert answer == "데이터"
-    assert literacy_score > 0
+    assert result["faithfulness"] >= 0
+    assert result["relevance"] >= 0
+    assert result["average_score"] >= 0

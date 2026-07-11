@@ -1,17 +1,20 @@
+from backend.evaluation.evaluation_pipeline import (
+    run_evaluation_pipeline
+)
+
 from backend.evaluation.quality_report import (
     generate_quality_report
 )
 
 
-def evaluate_sample():
+def evaluate_sample(sample=None):
 
-    # (임시) Ragas 점수라고 가정
-    faithfulness = 0.92
-    relevance = 0.87
+    result = run_evaluation_pipeline(sample)
 
     report = generate_quality_report(
-        faithfulness=faithfulness,
-        relevance=relevance,
+        faithfulness=result["faithfulness"],
+        relevance=result["relevance"],
+        threshold=result["threshold"]
     )
 
     return report
