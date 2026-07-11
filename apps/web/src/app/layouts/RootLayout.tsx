@@ -24,8 +24,8 @@ export default function RootLayout() {
   // 7/11: 리액트 렌더 마운트 시 웜 그라데이션 및 바디 투명성 재확증 강제 부여
   useEffect(() => {
     try {
-      document.documentElement.style.setProperty('background', 'linear-gradient(180deg, #FAF8F5 0%, #EFEBE0 100%) fixed', 'important');
-      document.body.style.setProperty('background', 'linear-gradient(180deg, #FAF8F5 0%, #EFEBE0 100%) fixed', 'important');
+      document.documentElement.style.setProperty('background', 'linear-gradient(180deg, #FFF9F2 0%, #E8DCC8 100%) fixed', 'important');
+      document.body.style.setProperty('background', 'linear-gradient(180deg, #FFF9F2 0%, #E8DCC8 100%) fixed', 'important');
     } catch (e) {
       console.error(e);
     }
