@@ -140,6 +140,17 @@ async def process_events(session_id: str, req: EventsRequestModel):
             "message": msg
         }
         
+        # 퀴즈(hard 개입)인 경우 프론트엔드가 팝업을 띄울 수 있도록 quiz_data 주입
+        if internal_type == "quiz":
+            state["intervention"]["quiz_data"] = {
+                "id": "quiz-001",
+                "type": "ox",
+                "question": "AI 시대의 리터러시는 단순한 텍스트 해독만을 의미하나요?",
+                "options": ["O", "X"],
+                "answer": "X",
+                "explanation": "현대의 리터러시는 맥락적 추론과 출처 교차 검증을 포함합니다."
+            }
+        
         return to_intervention_command(state)
     finally:
         await redis_client.aclose()
