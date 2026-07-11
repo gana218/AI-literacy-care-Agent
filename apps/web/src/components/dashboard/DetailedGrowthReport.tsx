@@ -165,7 +165,7 @@ export default function DetailedGrowthReport() {
             <div className="lg:col-span-6 flex flex-col justify-between p-4 bg-[var(--color-bg)] rounded-[var(--radius-md)] border border-[var(--color-border)]">
               <div>
                 <h3 className="text-sm font-semibold flex items-center gap-1.5 mb-1" style={{ color: 'var(--color-text)', fontFamily: 'var(--font-sans)' }}>
-                  🎯 다면 역량 성장 분석 (문해 5대 지표)
+                  다면 역량 성장 분석 (문해 5대 지표)
                 </h3>
                 <p className="text-xs mb-4" style={{ color: 'var(--color-text-secondary)', fontFamily: 'var(--font-sans)' }}>
                   케어 미적용 상태와 적용 후의 세부 역량 성장 비교
@@ -225,7 +225,7 @@ export default function DetailedGrowthReport() {
             <div className="lg:col-span-6 flex flex-col justify-between p-4 bg-[var(--color-bg)] rounded-[var(--radius-md)] border border-[var(--color-border)]">
               <div>
                 <h3 className="text-sm font-semibold flex items-center gap-1.5 mb-1" style={{ color: 'var(--color-text)', fontFamily: 'var(--font-sans)' }}>
-                  ⚡ 독해 학습 시간 & 획득 XP 추이
+                  독해 학습 시간 & 획득 XP 추이
                 </h3>
                 <p className="text-xs mb-4" style={{ color: 'var(--color-text-secondary)', fontFamily: 'var(--font-sans)' }}>
                   일별/주차별 집중 독해 시간(분) 및 미션 달성으로 획득한 경험치
@@ -293,7 +293,7 @@ export default function DetailedGrowthReport() {
             <div className="md:col-span-7 p-5 bg-[var(--color-surface-alt)] rounded-[var(--radius-md)] border border-[var(--color-border)] flex flex-col justify-between">
               <div>
                 <div className="flex items-center gap-2 mb-3">
-                  <span className="text-xl">🤖</span>
+                  <span className="text-xl"></span>
                   <h4 className="text-sm font-bold" style={{ color: 'var(--color-text)', fontFamily: 'var(--font-sans)' }}>
                     AI 리터러시 코치의 주간 성장 처방전
                   </h4>
@@ -318,7 +318,7 @@ export default function DetailedGrowthReport() {
               <div className="mt-4 pt-4 border-t border-[var(--color-border)] flex items-center justify-between text-xs font-semibold">
                 <span style={{ color: 'var(--color-text-secondary)' }}>핵심 성장 성과</span>
                 <span className="text-[var(--color-growth)]">
-                  {tab === 'weekly' ? '📈 어휘력 단기 폭풍 성장 (+35.4%)' : '🏆 문장 변환 의존성 대폭 감소 (-50%)'}
+                  {tab === 'weekly' ? '어휘력 단기 폭풍 성장 (+35.4%)' : '문장 변환 의존성 대폭 감소 (-50%)'}
                 </span>
               </div>
             </div>
@@ -327,7 +327,7 @@ export default function DetailedGrowthReport() {
             <div className="md:col-span-5 p-5 bg-[var(--color-surface)] rounded-[var(--radius-md)] border border-[var(--color-border)] flex flex-col justify-between">
               <div>
                 <h4 className="text-sm font-bold mb-3 flex items-center gap-1.5" style={{ color: 'var(--color-text)', fontFamily: 'var(--font-sans)' }}>
-                  📖 {tab === 'weekly' ? '이번 주' : '이번 달'} 습득 핵심 어휘 보드
+                  {tab === 'weekly' ? '이번 주' : '이번 달'} 습득 핵심 어휘 보드
                 </h4>
                 <div className="space-y-3">
                   {currentWords.map((item: any, idx: number) => (
@@ -372,7 +372,7 @@ export default function DetailedGrowthReport() {
                                   : 'var(--color-nudge-medium)',
                             }}
                           >
-                            {item.status === 'completed' ? '완료 🎖️' : '복습 필요 ⚠️'}
+                            {item.status === 'completed' ? '완료' : '복습 필요'}
                           </span>
                         </div>
                       </div>
@@ -389,7 +389,7 @@ export default function DetailedGrowthReport() {
                 className="mt-4 w-full py-2 bg-[var(--color-surface-alt)] border border-[var(--color-border)] hover:bg-[var(--color-border)] text-xs font-semibold rounded-lg transition-colors duration-200"
                 style={{ color: 'var(--color-text)', fontFamily: 'var(--font-sans)' }}
               >
-                🗂️ 전체 단어장 보러가기
+                전체 단어장 보러가기
               </button>
             </div>
 

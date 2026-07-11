@@ -196,7 +196,7 @@ export const FloatingControlPanel: React.FC = () => {
   // 초기 로드 시 시스템 안내 메시지 추가
   useEffect(() => {
     setLogs([
-      { id: 'init', time: getNowString(), msg: '🤖 리터러시 에이전트 오케스트레이터 가동 완료', type: 'system' }
+      { id: 'init', time: getNowString(), msg: '리터러시 에이전트 오케스트레이터 가동 완료', type: 'system' }
     ]);
   }, []);
 
@@ -231,36 +231,36 @@ export const FloatingControlPanel: React.FC = () => {
     // 1. 읽기 진행률 로그
     if (now.progress !== prev.progress) {
       if (now.progress === 100) {
-        addLog('🏆 본문 완독 성공! 최종 성과 분석 중...', 'system');
+        addLog('본문 완독 성공! 최종 성과 분석 중...', 'system');
       } else if (now.progress > 0 && now.progress % 25 === 0) {
-        addLog(`📖 읽기 진행도: ${now.progress}% 달성`, 'system');
+        addLog(`읽기 진행도: ${now.progress}% 달성`, 'system');
       }
     }
 
     // 2. 집중도 변화 로그
     if (now.focusScore !== prev.focusScore) {
       if (now.focusScore < prev.focusScore) {
-        addLog(`⚡ 집중도 감소 감지: ${prev.focusScore}% → ${now.focusScore}%`, 'system');
+        addLog(`집중도 감소 감지: ${prev.focusScore}% → ${now.focusScore}%`, 'system');
       } else {
-        addLog(`⚡ 집중도 회복 감지: ${prev.focusScore}% → ${now.focusScore}%`, 'system');
+        addLog(`집중도 회복 감지: ${prev.focusScore}% → ${now.focusScore}%`, 'system');
       }
     }
 
     // 3. 넛지 레벨 개입 로그
     if (now.nudgeLevel !== prev.nudgeLevel) {
       if (now.nudgeLevel !== 'none') {
-        addLog(`⚠️ [케어 개입] ${now.nudgeLevel.toUpperCase()} Nudge 전송 완료`, 'nudge');
+        addLog(`[케어 개입] ${now.nudgeLevel.toUpperCase()} Nudge 전송 완료`, 'nudge');
       } else if (prev.nudgeLevel !== 'none') {
-        addLog('✅ 개입 완화: Nudge 모니터링 대기 상태 진입', 'nudge');
+        addLog('개입 완화: Nudge 모니터링 대기 상태 진입', 'nudge');
       }
     }
 
     // 4. 돌발 퀴즈 팝업 로그
     if (now.isQuizVisible !== prev.isQuizVisible) {
       if (now.isQuizVisible) {
-        addLog('🚨 [하드 개입] 문해력 점검 간이 퀴즈 트리거', 'quiz');
+        addLog('[하드 개입] 문해력 점검 간이 퀴즈 트리거', 'quiz');
       } else {
-        addLog('✅ 퀴즈 완료: 화면 인터럽트 해제', 'quiz');
+        addLog('퀴즈 완료: 화면 인터럽트 해제', 'quiz');
       }
     }
 
@@ -268,7 +268,7 @@ export const FloatingControlPanel: React.FC = () => {
     if (now.xp !== prev.xp) {
       const diff = now.xp - prev.xp;
       if (diff > 0) {
-        addLog(`✨ 경험치 획득: +${diff} XP (누적: ${now.xp} XP)`, 'xp');
+        addLog(`경험치 획득: +${diff} XP (누적: ${now.xp} XP)`, 'xp');
       }
     }
 
@@ -352,7 +352,7 @@ export const FloatingControlPanel: React.FC = () => {
         {/* ── 읽기 진행률 ── */}
         <section>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-2)' }}>
-            <span style={{ fontSize: 'var(--text-sm)', color: 'var(--color-text-secondary)', fontWeight: 500 }}>📖 진행률</span>
+            <span style={{ fontSize: 'var(--text-sm)', color: 'var(--color-text-secondary)', fontWeight: 500 }}>진행률</span>
             <span style={{ fontSize: 'var(--text-lg)', fontWeight: 700, color: 'var(--color-primary)', fontVariantNumeric: 'tabular-nums' }}>
               {progress}%
             </span>
@@ -365,9 +365,9 @@ export const FloatingControlPanel: React.FC = () => {
 
         {/* ── Literacy Score ── */}
         <section>
-          <p style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-secondary)', marginBottom: 'var(--space-1)', fontWeight: 500 }}>🎯 리터러시 점수</p>
+          <p style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-secondary)', marginBottom: 'var(--space-1)', fontWeight: 500 }}>리터러시 점수</p>
           <div style={{ display: 'flex', alignItems: 'baseline', gap: 'var(--space-1)' }}>
-            <span style={{ fontSize: '2rem', fontWeight: 700, color: 'var(--color-primary)', fontVariantNumeric: 'tabular-nums' }}>
+            <span style={{ fontSize: '2rem', fontWeight: 700, color: 'var(--color-growth)', fontVariantNumeric: 'tabular-nums' }}>
               {literacyScore}
             </span>
             <span style={{ fontSize: 'var(--text-sm)', color: 'var(--color-text-muted)', fontWeight: 500 }}>/ 100점</span>
@@ -385,7 +385,7 @@ export const FloatingControlPanel: React.FC = () => {
 
         {/* ── 배지 ── */}
         <section>
-          <p style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-secondary)', marginBottom: 'var(--space-2.5)', fontWeight: 500 }}>🎖️ 배지 보유현황</p>
+          <p style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-secondary)', marginBottom: 'var(--space-2.5)', fontWeight: 500 }}>배지 보유현황</p>
           <BadgeShelf compact />
         </section>
 
@@ -393,7 +393,7 @@ export const FloatingControlPanel: React.FC = () => {
         <section style={{ borderTop: '1px solid var(--color-border)', paddingTop: 'var(--space-4)', display: 'flex', flexDirection: 'column', gap: '8px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <p style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-secondary)', fontWeight: 600 }}>
-              🔍 실시간 행동 지표 (Live Monitor)
+              실시간 행동 지표 (Live Monitor)
             </p>
             <button
               onClick={openDevMonitor}
@@ -411,7 +411,7 @@ export const FloatingControlPanel: React.FC = () => {
               onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--color-border)'}
               onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'var(--color-surface-alt)'}
             >
-              🖥️ 새 창으로 열기
+              새 창으로 열기
             </button>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', fontSize: '10px' }}>
@@ -446,7 +446,7 @@ export const FloatingControlPanel: React.FC = () => {
         <section style={{ borderTop: '1px solid var(--color-border)', paddingTop: 'var(--space-4)' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
             <p style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-secondary)', fontWeight: 600 }}>
-              🤖 실시간 에이전트 개입 로그
+              실시간 에이전트 개입 로그
             </p>
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
               {isOnline ? (

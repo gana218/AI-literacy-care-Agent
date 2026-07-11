@@ -9,6 +9,7 @@ import { useSessionConfig } from '../stores/sessionConfigStore';
 import { useReadingStore } from '../stores/readingStore';
 import { Button } from '../components/common/Button';
 import BottomTabBar from '../components/common/BottomTabBar';
+import { FolderOpen, Folder, FileText, Calendar, Loader2 } from 'lucide-react';
 
 interface UploadedArticle {
   id: string;
@@ -197,7 +198,7 @@ export default function UploadPage() {
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div>
                 <h1 className="text-2xl font-bold mb-1" style={{ letterSpacing: 'var(--tracking-kr)' }}>
-                  📄 내 문서 보관함
+                  내 문서 보관함
                 </h1>
                 <p className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>
                   여태껏 등록한 파일 목록입니다. 읽고 싶은 글을 클릭해 실시간 케어를 진행해 보세요.
@@ -214,7 +215,7 @@ export default function UploadPage() {
                   setError('');
                 }}
               >
-                파일 업로드 ＋
+                파일 업로드
               </Button>
             </div>
 
@@ -223,7 +224,7 @@ export default function UploadPage() {
                 className="rounded-xl border p-12 text-center"
                 style={{ backgroundColor: 'var(--color-surface)', borderColor: 'var(--color-border)' }}
               >
-                <div className="text-4xl mb-3">📁</div>
+                <div className="text-4xl mb-3" style={{ color: "var(--text-secondary)" }}><FolderOpen size={40} className="mx-auto" /></div>
                 <p className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>보관함이 비어 있습니다. 새 문서를 먼저 등록해 보세요!</p>
               </div>
             ) : (
@@ -243,15 +244,15 @@ export default function UploadPage() {
                         {art.title}
                       </div>
                       <div className="flex items-center gap-2 text-[11px]" style={{ color: 'var(--color-text-secondary)' }}>
-                        <span>📂 {art.category}</span>
+                        <span className="inline-flex items-center gap-1"><Folder size={12} /> {art.category}</span>
                         <span>•</span>
-                        <span>📝 {art.content.length}개 단락</span>
+                        <span className="inline-flex items-center gap-1"><FileText size={12} /> {art.content.length}개 단락</span>
                         <span>•</span>
-                        <span className="tabular-nums">⏰ {new Date(art.uploadedAt).toLocaleDateString()}</span>
+                        <span className="inline-flex items-center gap-1 tabular-nums"><Calendar size={12} /> {new Date(art.uploadedAt).toLocaleDateString()}</span>
                       </div>
                     </div>
                     <div className="shrink-0 text-xs font-semibold" style={{ color: 'var(--color-primary)' }}>
-                      마저 읽기 →
+                      마저 읽기
                     </div>
                   </div>
                 ))}
@@ -270,7 +271,7 @@ export default function UploadPage() {
                 ← 내 보관함 목록으로 가기
               </button>
               <h1 className="text-2xl font-bold mb-1" style={{ letterSpacing: 'var(--tracking-kr)' }}>
-                📄 새 문서 등록하기
+                새 문서 등록하기
               </h1>
               <p className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>
                 아티클의 텍스트 본문을 등록하면 분석 알고리즘이 적용된 인앱 뷰어로 독서가 시작됩니다.
@@ -291,7 +292,7 @@ export default function UploadPage() {
                 onDragOver={(e) => e.preventDefault()}
                 onDrop={(e) => { e.preventDefault(); if (!parsingPdf) void processPdf(e.dataTransfer.files?.[0]); }}
               >
-                <div className="text-3xl mb-1">{parsingPdf ? '⚙️' : '📁'}</div>
+                <div className="text-3xl mb-2" style={{ color: "var(--text-secondary)" }}>{parsingPdf ? <Loader2 size={32} className="animate-spin mx-auto" /> : <FolderOpen size={32} className="mx-auto" />}</div>
                 <div className="text-sm font-bold">
                   {parsingPdf ? 'PDF 본문 텍스트 분석 중...' : 'PDF 파일 올리기'}
                 </div>
@@ -348,7 +349,7 @@ export default function UploadPage() {
               </div>
 
               <Button variant="primary" size="lg" className="w-full" onClick={handleStart}>
-                등록하고 바로 읽기 시작 →
+                등록하고 바로 읽기 시작
               </Button>
             </div>
           </div>

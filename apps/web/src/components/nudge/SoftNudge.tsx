@@ -57,7 +57,7 @@ export const SoftNudge: React.FC<SoftNudgeProps> = ({
           aria-live="polite"
         >
           {/* 아이콘 */}
-          <span style={{ fontSize: '20px', lineHeight: 1, flexShrink: 0, marginTop: '1px' }}>💡</span>
+          
 
           {/* 본문 */}
           <div style={{ flex: 1 }}>

@@ -153,7 +153,7 @@ export const QuizCard: React.FC = () => {
             style={{
               position: 'fixed',
               inset: 0,
-              backgroundColor: 'rgba(42, 36, 33, 0.45)',
+              backgroundColor: 'rgba(42,39,36,0.4)',
               backdropFilter: 'blur(4px)',
               zIndex: 'calc(var(--z-quiz) - 1)' as unknown as number,
             }}
@@ -218,11 +218,11 @@ export const QuizCard: React.FC = () => {
                       이해도 평가
                     </span>
                     <span style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)' }}>
-                      ✨ 정답 시 +{currentQuiz.xpReward} XP
+                      정답 시 +{currentQuiz.xpReward} XP
                     </span>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: 'var(--text-sm)', color: timerColor, fontVariantNumeric: 'tabular-nums', fontWeight: 'var(--weight-semibold)' as unknown as number }}>
-                    ⏱ {timeLeft}초
+                    {timeLeft}초
                   </div>
                 </div>
 
@@ -439,15 +439,15 @@ export const QuizCard: React.FC = () => {
                           }}
                         >
                           {phase === 'correct'
-                            ? `🎉 정답! +${currentQuiz.xpReward} XP 획득!`
+                            ? `정답입니다! +${currentQuiz.xpReward} XP를 획득했습니다.`
                             : selectedIndex === -1
-                            ? '⏰ 시간 초과!'
-                            : '❌ 오답입니다'}
+                            ? '시간을 초과했습니다.'
+                            : '오답입니다. 본문을 다시 차분히 읽어보세요.'}
                         </p>
                         <p
                           style={{
                             fontSize: 'var(--text-xs)',
-                            color: phase === 'correct' ? '#065f46' : '#991b1b',
+                            color: 'var(--color-text)',
                             fontFamily: 'var(--font-sans)',
                             lineHeight: 'var(--leading-relaxed)',
                           }}
@@ -471,7 +471,7 @@ export const QuizCard: React.FC = () => {
                           cursor: 'pointer',
                         }}
                       >
-                        {phase === 'correct' ? '✨ 계속 읽기' : '다음으로 →'}
+                        {phase === 'correct' ? '계속 읽기' : '다음으로 →'}
                       </button>
                     </motion.div>
                   )}

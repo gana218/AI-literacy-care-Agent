@@ -56,13 +56,7 @@ export const MediumNudge: React.FC<MediumNudgeProps> = ({ message, onEscalate })
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 'var(--space-3)' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
               {/* 펄스 인디케이터 */}
-              <motion.span
-                animate={{ scale: [1, 1.3, 1] }}
-                transition={{ repeat: Infinity, duration: 2, ease: 'easeInOut' }}
-                style={{ fontSize: '18px' }}
-              >
-                ⚠️
-              </motion.span>
+              
               <span
                 style={{
                   fontSize: 'var(--text-xs)',

@@ -1,49 +1,63 @@
 :root {
-  /* surface (warm paper, 눈피로↓ - Claude.DESIGN.md 기반) */
-  --color-bg: #FBF9F6;
-  --color-surface: #FCFAF7;
-  --color-surface-alt: #FAF5EE;
-  --color-border: #EBE5DB;
+  /* 12대 핵심 디자인 토큰 (ref-reading.png 및 사용자 명세 기반) */
+  --bg-base: #FAF8F3;        /* 앱 기본 배경 (웜 크림) */
+  --bg-paper: #FDFCF9;       /* 카드·읽기 지문 배경 (페이퍼) */
+  --bg-sunken: #F3F0E9;      /* 입력창·비활성 영역 */
 
-  /* text (warm near-black) */
-  --color-text: #2C2621;
-  --color-text-secondary: #6E655F;
-  --color-text-muted: #A39A94;
+  --text-primary: #2A2724;   /* 웜 차콜 */
+  --text-secondary: #6B655C;
+  --text-muted: #9C958A;
 
-  /* brand / focus (terracotta editorial) */
-  --color-primary: #C85A32;
-  --color-primary-hover: #A54420;
-  --color-primary-tint: #F7ECE6;
+  --accent-focus: #4A6FA5;   /* 집중도·측정 관련 (차분한 블루) */
+  --accent-growth: #7A8B6F;  /* 성장·완독·정답 (세이지 그린) */
+  --accent-warm: #C77D4F;    /* 하이라이트·보상·오답 피드백 (테라코타/앰버) */
 
-  /* growth / positive */
-  --color-growth: #608066;
-  --color-growth-tint: #EEF3EF;
+  --border-soft: #E8E3D9;
+  --shadow-soft: 0 2px 16px rgba(42, 39, 36, 0.06);
+  --radius-card: 14px;
+  --radius-button: 10px;
 
-  /* Adaptive Nudge 3단계 (빨간 경고색 제거, 세이지그린/앰버/테라코타 대체) */
-  --color-nudge-soft: #608066;      --color-nudge-soft-tint: #EEF3EF;
-  --color-nudge-medium: #D97706;    --color-nudge-medium-tint: #FEF3C7;
-  --color-nudge-hard: #C85A32;      --color-nudge-hard-tint: #F7ECE6;
+  /* 구형 CSS 변수 호환성 및 롤백용 하위 매핑 */
+  --color-bg: var(--bg-base);
+  --color-surface: var(--bg-paper);
+  --color-surface-alt: var(--bg-sunken);
+  --color-border: var(--border-soft);
 
-  /* metric (Literacy Score 차트 - Cal.com.DESIGN.md 기반) */
-  --color-comprehension: #608066;   /* 이해도: 세이지 그린 */
-  --color-engagement: #C85A32;      /* 집중도: 테라코타 */
+  --color-text: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --color-text-muted: var(--text-muted);
 
-  /* gamification */
-  --color-xp: #D97706;
-  --color-level: #608066;
+  --color-primary: var(--accent-focus);
+  --color-primary-hover: #3b5a87;
+  --color-primary-tint: #f0f4f8;
 
-  /* smart highlighting (은은한 앰버 형광펜 효과) */
-  --color-highlight: rgba(217, 119, 6, 0.15);
+  --color-growth: var(--accent-growth);
+  --color-growth-tint: #f1f4f0;
 
-  /* semantic (경고성 빨강은 최소화 및 소프트 앰버/세이지로 대체) */
-  --color-success: #608066;
-  --color-warning: #D97706;
-  --color-danger: #C85A32;
-  --color-info: #6E655F;
+  /* Adaptive Nudge 3단계 (경고성 빨강 완전 제거 및 앰버/테라코타 대체) */
+  --color-nudge-soft: var(--accent-growth);      --color-nudge-soft-tint: #f1f4f0;
+  --color-nudge-medium: var(--accent-warm);    --color-nudge-medium-tint: #faf2ec;
+  --color-nudge-hard: var(--accent-warm);      --color-nudge-hard-tint: #faf2ec;
 
-  /* radius (Airbnb.DESIGN.md 기반 부드러운 라운드) */
-  --radius-sm: 10px; --radius-md: 14px; --radius-lg: 18px;
-  --radius-xl: 24px; --radius-full: 9999px;
+  --color-comprehension: var(--accent-growth);   /* 이해도: 세이지 그린 */
+  --color-engagement: var(--accent-focus);      /* 집중도: 차분한 블루 */
+
+  --color-xp: var(--accent-warm);
+  --color-level: var(--accent-focus);
+
+  /* 스마트 하이라이트 (형광펜은 --accent-warm의 35% 투명도 배경으로) */
+  --color-highlight: rgba(199, 125, 79, 0.35);
+
+  --color-success: var(--accent-growth);
+  --color-warning: var(--accent-warm);
+  --color-danger: var(--accent-warm);
+  --color-info: var(--text-secondary);
+
+  --radius-sm: 6px; 
+  --radius-md: var(--radius-button); 
+  --radius-lg: var(--radius-card);
+  --radius-xl: 20px; 
+  --radius-full: 9999px;
 
   /* spacing (4-base) */
   --space-1: 4px;  --space-2: 8px;  --space-3: 12px; --space-4: 16px;
@@ -51,38 +65,45 @@
   --space-12: 48px; --space-16: 64px;
 
   /* typography */
-  --font-sans: "Pretendard Variable", Pretendard, system-ui, sans-serif;
-  --font-serif: Georgia, "Noto Serif KR", "Batang", serif;
+  --font-sans: Pretendard, -apple-system, sans-serif;
+  --font-serif: "Noto Serif KR", Georgia, "Batang", serif;
   --text-xs: 0.75rem;  --text-sm: 0.875rem; --text-base: 1rem;
   --text-lg: 1.125rem; --text-xl: 1.25rem;  --text-2xl: 1.5rem;
   --text-3xl: 1.875rem; --text-4xl: 2.25rem;
-  --text-reading: 1.125rem;            /* 읽기 본문 18px */
+  --text-reading: 1.09rem;             /* 읽기 본문 17~18px 대역 */
   --leading-tight: 1.25; --leading-normal: 1.5; --leading-reading: 1.85;
   --weight-regular: 400; --weight-medium: 500;
   --weight-semibold: 600; --weight-bold: 700;
-  --tracking-kr: -0.01em;              /* 한글 자간 보정 */
+  --tracking-kr: -0.012em;             /* 가독성 자간 */
 
-  /* shadow (Airbnb.DESIGN.md 기반 소프트 디스퍼스 섀도) */
-  --shadow-sm: 0 2px 8px rgba(44, 38, 33, 0.03);
-  --shadow-md: 0 4px 16px rgba(44, 38, 33, 0.05);
-  --shadow-panel: 0 8px 24px rgba(44, 38, 33, 0.08);
+  --shadow-sm: 0 1px 2px rgba(42, 39, 36, 0.02);
+  --shadow-md: var(--shadow-soft);
+  --shadow-panel: var(--shadow-soft);
 
-  /* motion (Framer Motion과 매핑되는 차분한 200-300ms 이징) */
+  /* motion (Framer Motion과 매핑되는 차분한 200-250ms 이징) */
   --duration-fast: 150ms; --duration-base: 220ms; --duration-slow: 350ms;
   --ease-out: cubic-bezier(0.25, 1, 0.5, 1);
 
   /* reading layout */
-  --reading-measure: 68ch;
+  --reading-measure: 680px;
 
   /* z-index */
   --z-highlight: 10; --z-tooltip: 40; --z-panel: 60; --z-quiz: 80;
 }
 
-/* 다크모드 무력화 (웜 크림을 유지하도록 다크 토큰 제거 및 바인딩 비활성화) */
+/* 다크모드 강제 무력화 및 비활성화 (웜 크림을 영구 테마로 바인딩) */
 [data-theme="dark"] {
-  /* 다크 테마 시에도 에디토리얼 테라코타 및 웜 페이퍼를 고정 적용하여 시각적 일관성 보증 */
-  --color-bg: #FBF9F6; --color-surface: #FCFAF7; --color-surface-alt: #FAF5EE;
-  --color-border: #EBE5DB; --color-text: #2C2621;
-  --color-text-secondary: #6E655F; --color-text-muted: #A39A94;
-  --color-primary-tint: #F7ECE6; --color-highlight: rgba(217, 119, 6, 0.15);
+  --bg-base: #FAF8F3;
+  --bg-paper: #FDFCF9;
+  --bg-sunken: #F3F0E9;
+  --text-primary: #2A2724;
+  --text-secondary: #6B655C;
+  --text-muted: #9C958A;
+  --accent-focus: #4A6FA5;
+  --accent-growth: #7A8B6F;
+  --accent-warm: #C77D4F;
+  --border-soft: #E8E3D9;
+  --shadow-soft: 0 2px 16px rgba(42, 39, 36, 0.06);
+  --color-primary-tint: #f0f4f8;
+  --color-highlight: rgba(199, 125, 79, 0.35);
 }

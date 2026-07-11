@@ -342,7 +342,7 @@ export const ReadingPane: React.FC = () => {
                 }}
                 title="2번 Content Reducer가 재구성한 쉬운 문장으로 전환"
               >
-                <span>{showEasy ? '📄 원문 보기' : '🔤 쉬운 문장 보기'}</span>
+                <span>{showEasy ? '원문 보기' : '쉬운 문장 보기'}</span>
               </button>
             )}
             <button
@@ -374,7 +374,7 @@ export const ReadingPane: React.FC = () => {
                 }
               }}
             >
-              <span>{showGlossesInline ? '📖 RAG AI 주석 상시 표시 중' : '💡 RAG AI 주석 상시 표시'}</span>
+              <span>{showGlossesInline ? 'RAG AI 주석 상시 표시 중' : 'RAG AI 주석 상시 표시'}</span>
             </button>
             </div>
           </div>
@@ -430,7 +430,7 @@ export const ReadingPane: React.FC = () => {
               fontFamily: 'var(--font-sans)',
             }}
           >
-            🎉 읽기 감지 영역 · 스크롤 진행률 및 단락 체류 시간이 실시간 측정됩니다
+            읽기 감지 영역 · 스크롤 진행률 및 단락 체류 시간이 실시간 측정됩니다
           </div>
         </div>
       </div>

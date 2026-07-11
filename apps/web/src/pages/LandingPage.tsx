@@ -11,6 +11,7 @@ import { useSessionConfig } from '../stores/sessionConfigStore';
 import { useAuthStore } from '../stores/authStore';
 import TutorialModal from '../components/common/TutorialModal';
 import BottomTabBar from '../components/common/BottomTabBar';
+import { Brain, User, Zap, Puzzle } from 'lucide-react';
 
 export default function LandingPage() {
   const navigate = useNavigate();
@@ -40,7 +41,7 @@ export default function LandingPage() {
         {/* 헤더 */}
         <div className="flex items-center justify-between mb-8">
           <div className="flex items-center gap-2">
-            <span className="text-2xl select-none">🧠</span>
+            <span className="text-2xl select-none" style={{ color: "var(--color-primary)" }}><Brain size={24} /></span>
             <span className="font-semibold" style={{ color: 'var(--color-primary)' }}>
               AI 리터러시 케어
             </span>
@@ -49,7 +50,7 @@ export default function LandingPage() {
             className="flex items-center gap-2 px-3 py-1.5 rounded-full text-xs"
             style={{ backgroundColor: 'var(--color-surface-alt)', border: '1px solid var(--color-border)' }}
           >
-            <span>🕶️</span>
+            <span style={{ color: "var(--color-text-secondary)" }}><User size={13} /></span>
             <span style={{ color: 'var(--color-text-secondary)' }}>익명</span>
             <span className="font-semibold tabular-nums" style={{ color: 'var(--color-text)' }}>#{shortId}</span>
           </div>
@@ -65,7 +66,7 @@ export default function LandingPage() {
         {/* 가로 1:1 대칭 배치 모드 카드 2열 */}
         <div className="grid gap-4 sm:grid-cols-2 mb-6 items-stretch">
           <ModeCard
-            emoji="⚡"
+            icon={<Zap size={28} style={{ color: "var(--accent-focus)" }} />}
             title="실시간 케어 ON"
             desc="업로드한 문서의 읽기 행동 패턴(스크롤, 체류 시간, 이탈 등)을 실시간 추적하여 문맥 설명 넛지와 단락 퀴즈를 케어해 줍니다."
             badge="가장 빠른 체험"
@@ -73,7 +74,7 @@ export default function LandingPage() {
             onClick={startCare}
           />
           <ModeCard
-            emoji="🧩"
+            icon={<Puzzle size={28} style={{ color: "var(--accent-focus)" }} />}
             title="크롬 확장 프로그램"
             desc="크롬 확장 프로그램을 설치하면 내가 실제로 보는 웹페이지나 PDF 문서에서도 실시간 집중도 측정과 퀴즈 개입 케어가 그대로 적용됩니다."
             badge="확장 설치 안내"
@@ -95,14 +96,14 @@ export default function LandingPage() {
 }
 
 function ModeCard({
-  emoji,
+  icon,
   title,
   desc,
   badge,
   accent,
   onClick,
 }: {
-  emoji: string;
+  icon: React.ReactNode;
   title: string;
   desc: string;
   badge: string;
@@ -121,7 +122,7 @@ function ModeCard({
       }}
     >
       <div className="flex items-center justify-between mb-3">
-        <span className="text-3xl select-none">{emoji}</span>
+        <span className="select-none">{icon}</span>
         <span
           className="text-xs px-2 py-0.5 rounded-full font-medium"
           style={{ backgroundColor: 'var(--color-surface-alt)', color: accent, border: `1px solid ${accent}` }}
@@ -136,7 +137,7 @@ function ModeCard({
         {desc}
       </p>
       <div className="mt-4 text-sm font-medium" style={{ color: accent }}>
-        선택하기 →
+        선택하기
       </div>
     </button>
   );

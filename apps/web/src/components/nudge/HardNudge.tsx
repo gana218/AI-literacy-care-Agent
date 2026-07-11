@@ -60,13 +60,7 @@ export const HardNudge: React.FC<HardNudgeProps> = ({ message }) => {
           {/* 왼쪽: 아이콘 + 메시지 */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
             {/* 경고 펄스 */}
-            <motion.div
-              animate={{ scale: [1, 1.2, 1], opacity: [1, 0.7, 1] }}
-              transition={{ repeat: Infinity, duration: 1.5 }}
-              style={{ fontSize: '22px', lineHeight: 1 }}
-            >
-              🚨
-            </motion.div>
+            
             <div>
               <p
                 style={{

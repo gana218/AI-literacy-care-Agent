@@ -174,7 +174,7 @@ export default function ExtensionPage() {
               marginBottom: '16px',
             }}
           >
-            🧩 크롬 전용 · 2분 설치
+            크롬 전용 · 2분 설치
           </div>
           <h1
             style={{
@@ -190,7 +190,7 @@ export default function ExtensionPage() {
             크롬에서 읽기<br />— 확장 프로그램 설치
           </h1>
           <p style={{ fontSize: '14px', color: 'var(--color-text-secondary)', lineHeight: 1.7, marginBottom: '32px' }}>
-            💡 이 확장은 크롬에서 읽는 글의 집중도를 측정해 도와줍니다.<br />
+            이 확장은 크롬에서 읽는 글의 집중도를 측정해 도와줍니다.<br />
             아래 순서대로 한 번만 설치하면 돼요.
           </p>
 
@@ -219,7 +219,6 @@ export default function ExtensionPage() {
               letterSpacing: 'var(--tracking-kr)',
             }}
           >
-            <span style={{ fontSize: '20px' }}>⬇️</span>
             확장 프로그램 다운로드
             <span style={{ fontSize: '12px', fontWeight: 400, opacity: 0.85 }}>ai-literacy-care-extension.zip</span>
           </motion.button>
@@ -402,7 +401,7 @@ export default function ExtensionPage() {
             letterSpacing: 'var(--tracking-kr)',
           }}
         >
-          ⬇️ 확장 프로그램 다운로드
+          확장 프로그램 다운로드
         </motion.button>
       </div>
     </div>
