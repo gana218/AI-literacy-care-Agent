@@ -1,8 +1,8 @@
-﻿"""
-restructurer.py — LLM 기반 텍스트 재구성 모듈 (M1)
+"""
+restructurer.py — LLM 기반 문단 요약 모듈 (M1)
 
 사용자의 리터러시 프로필과 텍스트 난이도에 따라
-Claude API를 호출하여 쉬운 문장으로 변환한다.
+Claude/Gemini API를 호출하여 1문장 요약으로 변환한다.
 
 동작 모드:
   CONTENT_REDUCER_MODE=real (기본):
@@ -27,8 +27,8 @@ from pathlib import Path
 
 from backend.app.agents.content_reducer.contracts import ChunkDict
 from backend.app.agents.content_reducer.prompts import (
-    RESTRUCTURE_SYSTEM_PROMPT,
-    build_restructure_prompt,
+    SUMMARY_SYSTEM_PROMPT,
+    build_summary_prompt,
 )
 from backend.app.agents.content_reducer.router import get_routing_reason, select_model
 
@@ -136,13 +136,13 @@ def _call_llm(
 
     # 1번의 딜리버리 플랜에 따라 gemini-2.0-flash 사용
     model = "gemini-2.0-flash"
-    prompt = build_restructure_prompt(chunk_text, level, domain)
+    prompt = build_summary_prompt(chunk_text, level, domain)
 
     response = client.models.generate_content(
         model=model,
         contents=prompt,
         config=types.GenerateContentConfig(
-            system_instruction=RESTRUCTURE_SYSTEM_PROMPT,
+            system_instruction=SUMMARY_SYSTEM_PROMPT,
         ),
     )
     result = response.text.strip()
@@ -153,78 +153,40 @@ def _call_llm(
 # 공개 API
 # ---------------------------------------------------------------------------
 
-def restructure_text(
-    chunks: list[ChunkDict],
-    profile: dict,
-    difficulty_score: float,
-    domain: str = "일반",
-) -> list[ChunkDict]:
+def summarize_text(chunk: ChunkDict, user_literacy_level: int, domain: str = "일반") -> ChunkDict:
     """
-    청크 목록을 사용자 수준에 맞게 재구성한다.
-
-    Args:
-        chunks: ChunkDict 목록 (chunker.py 출력)
-        profile: 사용자 프로필
-        difficulty_score: 전체 문서 난이도
-        domain: 도메인 힌트
-
-    Returns:
-        restructured_text가 추가된 ChunkDict 목록
+    주어진 청크의 텍스트를 LLM(또는 Fallback)을 통해 요약한다.
+    결과는 chunk["summary"] 에 저장된다.
     """
-    # 리터러시 수준 결정
-    level = profile.get("user_literacy_level", 3)
-    if isinstance(profile.get("reading_level"), str):
-        _map = {
-            "beginner": 1, "elementary": 2, "intermediate": 3,
-            "advanced": 4, "expert": 5,
-        }
-        level = _map.get(profile.get("reading_level", "intermediate"), 3)
+    start_time = time.time()
+    original_text = chunk["original_text"]
+    chunk_difficulty = chunk.get("difficulty", 3.0)
+    term_count = len(chunk.get("terms", []))
 
     mode = os.getenv("CONTENT_REDUCER_MODE", "real").lower()
     demo_mode = os.getenv("DEMO_MODE", "false").lower() == "true"
-    # Stub / Demo 모드 → 빠른 반환
-    if mode == "stub" or demo_mode:
-        for chunk in chunks:
-            chunk["restructured_text"] = _demo_restructure(
-                chunk["original_text"], level
-            )
-        return chunks
-
-    # 실제 LLM 호출 시도
     client = _get_client()
-    if client is None:
-        # API 키 없으면 demo로 폴백
-        for chunk in chunks:
-            chunk["restructured_text"] = _demo_restructure(
-                chunk["original_text"], level
-            )
-        return chunks
 
-    for chunk in chunks:
-        chunk_difficulty = chunk.get("difficulty", difficulty_score)
-        term_count = len(chunk.get("terms", []))
-
+    if mode == "stub" or demo_mode or client is None:
+        generated_text = _demo_restructure(original_text, user_literacy_level)
+        model = "demo_mode"
+        latency = int((time.time() - start_time) * 1000)
+    else:
         try:
-            restructured, model_used = _call_llm(
-                client=client,
-                chunk_text=chunk["original_text"],
-                level=level,
-                domain=domain,
-                difficulty=chunk_difficulty,
-                term_count=term_count,
+            generated_text, model = _call_llm(
+                client, original_text, user_literacy_level, domain, chunk_difficulty, term_count
             )
-            chunk["restructured_text"] = restructured
-            # routing 메타 정보 (trace용)
-            reason = get_routing_reason(chunk_difficulty, term_count, model_used)
-            chunk.setdefault("_meta", {})["routing"] = reason
-            chunk.setdefault("_meta", {})["model"] = model_used
+            latency = int((time.time() - start_time) * 1000)
+        except Exception as e:
+            latency = int((time.time() - start_time) * 1000)
+            generated_text = _demo_restructure(original_text, user_literacy_level)
+            model = f"fallback_on_error: {str(e)}"
 
-        except Exception as exc:
-            # LLM 실패 → 원문 반환 (Fallback)
-            chunk["restructured_text"] = chunk["original_text"]
-            chunk.setdefault("_meta", {})["routing"] = f"fallback: {exc}"
-
-        # Rate limit 방지
-        time.sleep(0.05)
-
-    return chunks
+    chunk["restructured_text"] = original_text
+    chunk["summary"] = generated_text
+    chunk["_meta"] = {
+        "model_used": model,
+        "summarizer_latency_ms": latency,
+        "route_reason": get_routing_reason(chunk_difficulty, term_count, model),
+    }
+    return chunk

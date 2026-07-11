@@ -1,4 +1,4 @@
-﻿"""
+"""
 agent.py — Content Reducer 에이전트 진입점 (M1)
 
 1번 Orchestrator에서 호출하는 메인 함수: run_content_reducer(state)
@@ -35,7 +35,7 @@ from backend.app.agents.content_reducer.readability import (
     calculate_difficulty_score,
     get_readability_label,
 )
-from backend.app.agents.content_reducer.restructurer import restructure_text
+from backend.app.agents.content_reducer.restructurer import summarize_text
 
 if TYPE_CHECKING:
     from backend.app.agents.content_reducer.contracts import ReadingSessionState
@@ -51,7 +51,7 @@ def _collect_simplified_text(chunks: list) -> str:
     """재구성된 청크 텍스트를 전체 문서 단위로 합친다."""
     parts = []
     for chunk in chunks:
-        text = chunk.get("restructured_text") or chunk.get("original_text", "")
+        text = chunk.get("summary") or chunk.get("restructured_text") or chunk.get("original_text", "")
         if text:
             parts.append(text)
     return "\n\n".join(parts)
@@ -147,11 +147,21 @@ def run_content_reducer(state: "ReadingSessionState") -> "ReadingSessionState":
             step_trace["rag_fallback"] = str(e)
 
         # ─────────────────────────────────────────
-        # Step 4: LLM 텍스트 재구성
+        # Step 4: LLM 문단 요약 (Summary)
         # ─────────────────────────────────────────
         try:
             domain = profile.get("target_domain", "일반")
-            chunks = restructure_text(chunks, profile, difficulty_score, domain)
+            user_literacy_level = profile.get("user_literacy_level", 3)
+            if isinstance(profile.get("reading_level"), str):
+                _map = {
+                    "beginner": 1, "elementary": 2, "intermediate": 3,
+                    "advanced": 4, "expert": 5,
+                }
+                user_literacy_level = _map.get(profile.get("reading_level", "intermediate"), 3)
+
+            for i in range(len(chunks)):
+                chunks[i] = summarize_text(chunks[i], user_literacy_level, domain)
+                time.sleep(0.05)  # Rate limit 방지
 
             # M2: _meta 필드를 chunk에서 추출하여 step_trace에 보관하고 chunk에서는 제거 (계약 클린 유지)
             chunks_routing = []
@@ -160,16 +170,17 @@ def run_content_reducer(state: "ReadingSessionState") -> "ReadingSessionState":
                     meta = chunk.pop("_meta", {})
                     chunks_routing.append({
                         "chunk_id": chunk["chunk_id"],
-                        "routing": meta.get("routing"),
-                        "model": meta.get("model")
+                        "routing": meta.get("route_reason"),
+                        "model": meta.get("model_used")
                     })
             if chunks_routing:
                 step_trace["chunks_routing"] = chunks_routing
         except Exception as e:
-            # 재구성 전체 실패 → 원문 그대로 사용
+            # 요약 전체 실패 → 원문 그대로 사용
             for chunk in chunks:
+                chunk.setdefault("summary", chunk["original_text"])
                 chunk.setdefault("restructured_text", chunk["original_text"])
-            step_trace["restructure_fallback"] = str(e)
+            step_trace["summary_fallback"] = str(e)
 
         # ─────────────────────────────────────────
         # Step 5: 결과 조합

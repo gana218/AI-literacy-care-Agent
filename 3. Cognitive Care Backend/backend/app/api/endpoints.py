@@ -15,7 +15,8 @@ from ..orchestrator.state import create_initial_state
 from ..orchestrator.graph import run_reading_session
 from .frontend_contract import to_intervention_command, to_session_result
 from ..services.cognitive_care import calculate_focus_score, determine_intervention
-from ..services.quiz_service import generate_ox_quiz, select_quiz_for_state
+from ..services.quiz_service import select_quiz_for_state
+from ..agents.content_reducer.quiz_generator import generate_quiz
 
 router = APIRouter(prefix="/api/session", tags=["Sessions"])
 
@@ -45,15 +46,12 @@ async def start_session(req: SessionStartRequest, request: Request, db: AsyncSes
     
     # 7/10: 온보딩 캘리브레이션 baselineScrollSpeed를 Redis에 보관
     redis_client = await get_redis()
-    try:
-        if req.baselineScrollSpeed:
-            baseline_val = {
-                "easy": req.baselineScrollSpeed.easy,
-                "hard": req.baselineScrollSpeed.hard
-            }
-            await redis_client.set(f"session:{session_id}:baseline", json.dumps(baseline_val))
-    finally:
-        await redis_client.aclose()
+    if req.baselineScrollSpeed:
+        baseline_val = {
+            "easy": req.baselineScrollSpeed.easy,
+            "hard": req.baselineScrollSpeed.hard
+        }
+        await redis_client.set(f"session:{session_id}:baseline", json.dumps(baseline_val))
 
     host = request.headers.get("host", "localhost:8000")
     ws_endpoint = f"ws://{host}/ws/reading/{session_id}"
@@ -94,15 +92,27 @@ async def start_session(req: SessionStartRequest, request: Request, db: AsyncSes
     # 퀴즈 미리 생성하여 Redis에 캐싱
     quizzes = {}
     for c in updated_state.get("chunks", []):
-        q = generate_ox_quiz(c.get("summary", ""), c.get("original_text", ""), c["chunk_id"], session_id)
+        context = c.get("summary") or c.get("original_text", "")
+        quiz_data = generate_quiz(c["chunk_id"], context)
+        
+        # 4지선다(QuizDict)를 O/X(Frontend 규격)로 매핑
+        # 프론트엔드는 question, options (["O", "X"]), answer (boolean), explanation 을 기대함
+        answer_bool = (quiz_data.get("correct_option") == 1)
+        
+        q = {
+            "quizId": f"q_{c['chunk_id']}",
+            "question": quiz_data.get("question", "알 수 없는 질문"),
+            "options": ["O", "X"],
+            "answer": answer_bool,
+            "explanation": quiz_data.get("explanation", "해설 없음"),
+            "chunkId": c["chunk_id"],
+            "sessionId": session_id
+        }
         quizzes[c["chunk_id"]] = q
         
     redis_client = await get_redis()
-    try:
-        await redis_client.set(f"session:{session_id}:quizzes", json.dumps(quizzes))
-        await redis_client.set(f"session:{session_id}:chunks", json.dumps(updated_state.get("chunks", [])))
-    finally:
-        await redis_client.aclose()
+    await redis_client.set(f"session:{session_id}:quizzes", json.dumps(quizzes))
+    await redis_client.set(f"session:{session_id}:chunks", json.dumps(updated_state.get("chunks", [])))
     
     return SessionStartResponse(
         sessionId=session_id, 
@@ -178,7 +188,7 @@ async def process_events(session_id: str, req: EventsRequestModel):
         
         return to_intervention_command(state)
     finally:
-        await redis_client.aclose()
+        pass
 
 @router.post("/{session_id}/quiz/submit", response_model=QuizSubmitResponse)
 async def submit_quiz(session_id: str, req: QuizSubmitRequest):
@@ -215,7 +225,7 @@ async def submit_quiz(session_id: str, req: QuizSubmitRequest):
             xpEarned=xp_earned
         )
     finally:
-        await redis_client.aclose()
+        pass
 
 
 @router.post("/{session_id}/finish", response_model=SessionFinishResponse)
@@ -282,7 +292,7 @@ async def finish_session(
             saved_events_count=saved_count
         )
     finally:
-        await redis_client.aclose()
+        pass
 
 @router.get("/{session_id}/result")
 async def get_session_result(session_id: str, db: AsyncSession = Depends(get_db)):
@@ -364,7 +374,7 @@ async def get_session_result(session_id: str, db: AsyncSession = Depends(get_db)
         final_state = run_reading_session(initial_state)
         return to_session_result(final_state)
     finally:
-        await redis_client.aclose()
+        pass
 
 @router.post("/{session_id}/quiz/submit", response_model=QuizSubmitResponse)
 async def submit_quiz(

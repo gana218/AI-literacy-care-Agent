@@ -44,7 +44,8 @@ class QuizDict(TypedDict):
 class ChunkDict(TypedDict):
     chunk_id: str
     original_text: str
-    restructured_text: NotRequired[str]   # LLM 재구성 결과
+    restructured_text: NotRequired[str]   # LLM 재구성 결과 (향후 폐기 예정)
+    summary: NotRequired[str]             # 문단별 1문장 요약
     difficulty: float                      # 0~100 (높을수록 어려움)
     terms: NotRequired[list[TermDict]]
     char_start: int                        # 원문에서의 시작 위치 (프론트 하이라이트용)
