@@ -54,7 +54,8 @@ class QuizSubmitRequest(BaseModel):
 class QuizSubmitResponse(BaseModel):
     correct: bool
     explanation: str
-    quiz_id: str
+    focusRecovered: float
+    xpEarned: int
 
 # --- Term Explain (7/6) ---
 class TermExplainRequest(BaseModel):

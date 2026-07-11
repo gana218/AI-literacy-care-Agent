@@ -7,6 +7,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useSessionConfig } from '../stores/sessionConfigStore';
 import { useReadingStore } from '../stores/readingStore';
+import { useAuthStore } from '../stores/authStore';
 import { Button } from '../components/common/Button';
 import BottomTabBar from '../components/common/BottomTabBar';
 import { FolderOpen, Folder, FileText, Calendar, Loader2 } from 'lucide-react';
@@ -54,13 +55,15 @@ const DEFAULT_DEMO_ARTICLES: UploadedArticle[] = [
   }
 ];
 
-const ARTICLES_KEY = 'local_uploaded_articles_db';
 
 export default function UploadPage() {
   const navigate = useNavigate();
 
   const setUpload = useSessionConfig((s) => s.setUpload);
   const setArticle = useReadingStore((s) => s.setArticle);
+  
+  const user = useAuthStore((s) => s.user);
+  const ARTICLES_KEY = `local_uploaded_articles_db_${user?.id || 'guest'}`;
 
   // 화면 모드: 'list' (보관함 목록) | 'create' (문서 등록 양식)
   const [viewMode, setViewMode] = useState<'list' | 'create'>('list');
@@ -112,7 +115,7 @@ export default function UploadPage() {
     } catch {
       setArticles(DEFAULT_DEMO_ARTICLES);
     }
-  }, []);
+  }, [ARTICLES_KEY]);
 
   const paragraphs = useMemo(
     () =>
