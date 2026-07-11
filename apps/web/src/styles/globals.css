@@ -98,7 +98,7 @@
   }
 
   body {
-    background-color: var(--color-bg);
+    background: linear-gradient(180deg, #FAF8F5 0%, #EFEBE0 100%) fixed;
     color: var(--color-text);
     font-family: var(--font-sans);
     letter-spacing: var(--tracking-kr);
