@@ -25,8 +25,8 @@ export default function TutorialModal() {
 
   return (
     <div
-      className="fixed inset-0 z-[9999] flex items-center justify-center p-4 backdrop-blur-md"
-      style={{ backgroundColor: 'rgba(10, 10, 12, 0.85)' }}
+      className="fixed inset-0 z-[9999] flex items-center justify-center p-4 backdrop-blur-xl"
+      style={{ backgroundColor: 'rgba(255, 255, 255, 0.15)' }}
     >
       <div
         className="w-full max-w-2xl rounded-2xl border p-6 md:p-8 flex flex-col justify-between transition-all duration-300 relative overflow-hidden"
