@@ -181,7 +181,7 @@ export default function UploadPage() {
   return (
     <div
       className="min-h-screen px-4 pt-10 pb-28"
-      style={{ backgroundColor: 'var(--color-bg)', color: 'var(--color-text)', fontFamily: 'var(--font-sans)' }}
+      style={{ color: 'var(--color-text)', fontFamily: 'var(--font-sans)' }}
     >
       <div className="max-w-2xl mx-auto">
         <button

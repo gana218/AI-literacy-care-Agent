@@ -23,7 +23,7 @@ export default function RootLayout() {
   return (
     <div
       className="min-h-screen pb-24 transition-colors duration-200"
-      style={{ backgroundColor: 'var(--color-bg)', color: 'var(--color-text)' }}
+      style={{ color: 'var(--color-text)' }}
     >
       {/* ── 헤더 ── */}
       <header

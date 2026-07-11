@@ -35,7 +35,7 @@ export default function LandingPage() {
   return (
     <div
       className="min-h-screen px-4 pt-10 pb-24"
-      style={{ backgroundColor: 'var(--color-bg)', color: 'var(--color-text)', fontFamily: 'var(--font-sans)' }}
+      style={{ color: 'var(--color-text)', fontFamily: 'var(--font-sans)' }}
     >
       <div className="max-w-4xl mx-auto">
         {/* 헤더 */}

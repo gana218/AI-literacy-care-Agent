@@ -104,7 +104,6 @@ export default function ExtensionPage() {
     <div
       style={{
         minHeight: '100vh',
-        backgroundColor: 'var(--color-bg)',
         color: 'var(--color-text)',
         fontFamily: 'var(--font-sans)',
       }}
