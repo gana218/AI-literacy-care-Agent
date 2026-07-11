@@ -139,9 +139,11 @@ def _final_response(state: ReadingSessionState) -> dict:
         "intervention": state.get("intervention"),
         "literacy_score": state.get("literacy_score"),
         "score_breakdown": state.get("score_breakdown"),
+        "qa_evaluation": state.get("qa_evaluation"),
         "reward": state.get("reward"),
         "updated_profile": state.get("updated_profile"),
         "warnings": state.get("warnings", []),
         "trace": state.get("trace", []),
         "errors": state.get("errors", []),
+        
     }
