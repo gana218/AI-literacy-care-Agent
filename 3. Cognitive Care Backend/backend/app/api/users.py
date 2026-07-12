@@ -5,6 +5,7 @@ from fastapi import APIRouter, HTTPException, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from ..core.db import get_db
+from ..core.redis import get_redis
 from ..models.models import ReadingSession, ReadingEvent, User, QuizResult
 from ..agents.content_reducer.snowchat_client import is_snowchat_available, _call_llm_via_snowchat
 
