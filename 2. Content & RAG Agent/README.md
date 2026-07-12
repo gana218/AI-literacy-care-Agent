@@ -116,6 +116,7 @@ python -m pytest backend/app/tests/test_content_e2e.py -v
 |---|---|
 | **Stub First** | 실제 LLM 없이 1번 Orchestrator E2E 흐름을 먼저 지원 |
 | **RAG 범위 제한** | RAG는 용어풀이에만 적용. 요약/재구성에 미적용 |
+| **문단별 맞춤 요약** | 3번 백엔드 퀴즈 연동을 위해, 각 청크의 `original_text`를 독자 문해력에 맞춰 1~2문장으로 요약한 `summary` 필드 주입 |
 | **환각 차단** | 모든 용어풀이는 신뢰 출처 데이터 기반 (직접 인용 방식, faithfulness_score=1.0) |
 | **Fallback 보장** | 각 서브모듈 실패 시 기본값 반환으로 데모 유지 |
 | **chunk_id 안정성** | 같은 문서는 항상 같은 chunk_id 생성 |
@@ -131,11 +132,12 @@ python -m pytest backend/app/tests/test_content_e2e.py -v
 * **`POST /api/content-reducer/reduce`** (Orchestrator용 표준 경로)
 * **`POST /api/session/start`** (크롬 확장 프로그램 / PDF 전용 인입 경로)
   * 문단 정규화 및 페이지 반복 머리말/꼬리말 제거 알고리즘 탑재
+  * 각 청크에 `summary` 필드(3번 백엔드 O/X 퀴즈 근거) 추가 반환
   * Frontend 호환성을 지원하기 위해 **camelCase 및 snake_case 이중 필드 호환 매핑** 반환
 
 ### 2. 특정 문맥 기반 독해 퀴즈 생성
 * **`POST /api/content-reducer/quiz`**
-  * 청크의 재구성 문맥을 기반으로 4지선다형 퀴즈 및 해설 생성 (실패 시 Fallback 퀴즈 작동)
+  * 청크의 `summary` 또는 원문 문맥을 기반으로 퀴즈 및 해설 생성 (실패 시 Fallback 퀴즈 작동)
 
 ### 3. 실시간 Hover 단어 무료 조회
 * **`POST /api/terms/lookup`**

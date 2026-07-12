@@ -38,7 +38,7 @@ from backend.app.agents.content_reducer.readability import (
     get_readability_label,
     get_technical_term_density,
 )
-# restructurer는 설계 변경으로 제거됨 (문장 재구성 → 문단별 난이도/문해력 RAG로 대체 예정)
+from backend.app.agents.content_reducer.restructurer import summarize_chunks
 
 if TYPE_CHECKING:
     from backend.app.agents.content_reducer.contracts import ReadingSessionState
@@ -51,10 +51,10 @@ if TYPE_CHECKING:
 # ---------------------------------------------------------------------------
 
 def _collect_simplified_text(chunks: list) -> str:
-    """청크의 원문 텍스트를 전체 문서 단위로 합친다."""
+    """청크의 요약 텍스트를 전체 문서 단위로 합쳐 전체 요약본을 제공한다."""
     parts = []
     for chunk in chunks:
-        text = chunk.get("original_text", "")
+        text = chunk.get("summary") or chunk.get("original_text", "")
         if text:
             parts.append(text)
     return "\n\n".join(parts)
@@ -152,8 +152,15 @@ def run_content_reducer(state: "ReadingSessionState") -> "ReadingSessionState":
             step_trace["rag_fallback"] = str(e)
 
         # ─────────────────────────────────────────
-        # (문장 재구성은 설계 변경으로 제거됨)
+        # Step 4: 문단별 요약 생성 (3번 OX 퀴즈용)
         # ─────────────────────────────────────────
+        try:
+            chunks = summarize_chunks(chunks, profile)
+        except Exception as e:
+            # 요약 실패 시 폴백으로 원문 앞부분 자동 세팅
+            for chunk in chunks:
+                chunk["summary"] = chunk["original_text"][:120] + "..."
+            step_trace["summary_fallback"] = str(e)
 
         # ─────────────────────────────────────────
         # Step 5: 결과 조합

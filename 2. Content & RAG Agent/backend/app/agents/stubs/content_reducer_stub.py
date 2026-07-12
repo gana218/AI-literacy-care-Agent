@@ -73,8 +73,9 @@ def content_reducer_stub(state: "ReadingSessionState") -> "ReadingSessionState":
             }
         ]
 
-    # 더미 용어 주입
+    # 더미 요약 및 용어 주입
     for chunk in chunks:
+        chunk["summary"] = f"[Stub 요약] {chunk['original_text'][:100]}..."
         chunk["terms"] = [
             {
                 "term": "인공지능",
@@ -87,7 +88,7 @@ def content_reducer_stub(state: "ReadingSessionState") -> "ReadingSessionState":
 
     # 전체 simplified_text
     simplified_text = "\n\n".join(
-        ch["original_text"] for ch in chunks
+        ch.get("summary", ch["original_text"]) for ch in chunks
     )
 
     # terms 중복 제거

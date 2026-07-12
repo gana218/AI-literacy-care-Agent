@@ -70,6 +70,8 @@ def test_full_pipeline_e2e_real_mode_demo(sample_state):
         for i, chunk in enumerate(chunks, start=1):
             assert chunk["chunk_id"] == f"chunk_doc_e2e_test_{i:02d}"
             assert len(chunk["original_text"]) > 0
+            assert "summary" in chunk
+            assert len(chunk["summary"]) > 0
             assert 0.0 <= chunk["difficulty"] <= 100.0
             assert chunk["char_start"] < chunk["char_end"]
             assert "terms" in chunk
@@ -85,7 +87,7 @@ def test_full_pipeline_e2e_real_mode_demo(sample_state):
                 assert "faithfulness_score" in term
                 assert term["chunk_id"].startswith("chunk_doc_e2e_test_")
         
-        # 5. 텍스트 재구성 결합본 검증
+        # 5. 텍스트 요약 결합본 검증
         assert len(processed_state["simplified_text"]) > 0
         assert "\n\n" in processed_state["simplified_text"]
         
@@ -96,7 +98,7 @@ def test_full_pipeline_e2e_real_mode_demo(sample_state):
         
         # 7. 개입 퀴즈 생성 호출 검증 (첫 번째 청크 기준)
         target_chunk = chunks[0]
-        quiz = generate_quiz(target_chunk["chunk_id"], target_chunk["original_text"])
+        quiz = generate_quiz(target_chunk["chunk_id"], target_chunk["summary"])
         
         assert quiz["chunk_id"] == target_chunk["chunk_id"]
         assert len(quiz["question"]) > 0
