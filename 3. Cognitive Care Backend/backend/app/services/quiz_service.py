@@ -24,8 +24,6 @@ def generate_ox_quiz(summary: str, paragraph: str, chunk_id: str, session_id: st
         sentences = re.split(r'(?<=[.!?])\s+|\.\s*', summary_clean)
         statement = sentences[0] if sentences else summary_clean
         if not statement: statement = "본문의 핵심 요약 내용과 일치합니다."
-        if len(statement) > 35:
-            statement = statement[:32] + "..."
         answer = True
         explanation = "원문의 내용 및 요약과 일치하는 올바른 진술입니다."
     else:
@@ -35,8 +33,6 @@ def generate_ox_quiz(summary: str, paragraph: str, chunk_id: str, session_id: st
         if not statement: 
             statement = "이 문단의 설명과 일치하지 않습니다."
         else:
-            if len(statement) > 35:
-                statement = statement[:32] + "..."
             # 아주 간단한 반전 (서술어 변경)
             if statement.endswith("다."):
                 statement = statement[:-2] + "지 않는다."
