@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from backend.app.agents.config import run_agent
 from backend.app.agents.real.cognitive_care_service import (
+    _personalized_scroll_threshold,
     _scroll_velocity,
     calculate_focus_score,
     determine_intervention,
@@ -43,7 +44,10 @@ def _cognitive_care_real(state: ReadingSessionState) -> ReadingSessionState:
     - duration_ms=None 방어는 `_sanitize_events`가 담당한다(CP-1).
     """
     events = _sanitize_events(state.get("reading_events", []))
-    focus_score = calculate_focus_score(events)
+    # 난이도-인지 개인화: 온보딩 캘리브레이션(state["scroll_baseline"])과 글 난이도(2번)를 넘긴다.
+    baseline = state.get("scroll_baseline") if isinstance(state.get("scroll_baseline"), dict) else None
+    difficulty_score = state.get("difficulty_score")
+    focus_score = calculate_focus_score(events, baseline=baseline, difficulty_score=difficulty_score)
     needed, _level, _message = determine_intervention(focus_score)
 
     state["focus_score"] = focus_score
@@ -69,7 +73,7 @@ FOCUS_WINDOW = 12  # 최근 이벤트 창 크기
 DEFAULT_SCROLL_THRESHOLD = 1.5  # px/ms (baseline 미적용 시 디폴트)
 
 
-def calculate_focus_breakdown(events: list) -> dict:
+def calculate_focus_breakdown(events: list, baseline: dict = None, difficulty_score: float = None) -> dict:
     """집중도 점수의 **감점 내역**을 산출한다(디버그/모니터용).
 
     실제 점수는 3번 `calculate_focus_score`가 계산하므로 여기서 재계산하지 않고 그대로
@@ -86,6 +90,8 @@ def calculate_focus_breakdown(events: list) -> dict:
       }
     """
     safe = _sanitize_events(events or [])
+    # 점수와 동일한 개인화 임계값으로 감점을 분해(penalty.total ≈ 100 - focusScore 유지).
+    scroll_threshold = _personalized_scroll_threshold(baseline, difficulty_score)
     window = safe[-FOCUS_WINDOW:]  # 점수와 동일한 최근 창
 
     counts = {
@@ -119,7 +125,7 @@ def calculate_focus_breakdown(events: list) -> dict:
             duration = event.get("duration_ms")
             velocity = _scroll_velocity(event)
             fast_interval = duration is not None and duration < 250
-            high_velocity = velocity > DEFAULT_SCROLL_THRESHOLD
+            high_velocity = velocity > scroll_threshold
             if fast_interval:
                 counts["fastInterval"] += 1  # 참고용 카운트(감점엔 미반영)
             if high_velocity:

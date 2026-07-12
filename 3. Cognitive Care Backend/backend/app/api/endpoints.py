@@ -14,7 +14,52 @@ from ..schemas.schemas import (
 from ..orchestrator.state import create_initial_state
 from ..orchestrator.graph import run_reading_session
 from .frontend_contract import to_intervention_command, to_session_result
-from ..services.cognitive_care import calculate_focus_score, determine_intervention
+from ..services.cognitive_care import (
+    calculate_focus_score,
+    determine_intervention,
+    _scroll_velocity,
+    _personalized_scroll_threshold,
+)
+
+
+def _update_user_scroll_baseline(user, state_events: list, difficulty_score: float) -> None:
+    """세션 종료 시 개인화 baseline을 EWMA로 갱신한다(rolling).
+
+    이번 글 난이도 D에서 "정상 읽기"로 스크롤한 속도의 중앙값을 관측치 v_obs로 삼아,
+    D에 더 가까운 캘리브레이션 점(easy/hard)을 v_obs 쪽으로 당긴다. n_sessions++로 신뢰도↑.
+    """
+    if user is None:
+        return
+    base = getattr(user, "scroll_baseline", None)
+    if not isinstance(base, dict) or base.get("easy") is None:
+        return  # 온보딩 baseline이 있어야 갱신 대상이 됨
+
+    thr = _personalized_scroll_threshold(base, difficulty_score)
+    vels = []
+    for e in state_events:
+        if e.get("type") != "scroll":
+            continue
+        v = _scroll_velocity(e)  # top-level velocity 또는 metadata.payload.scrollVelocity 자동 처리
+        if 0.05 < v < thr:  # 스키밍(≥thr)·정지(≈0) 제외 = 정상 읽기 속도
+            vels.append(v)
+    if not vels:
+        return
+    vels.sort()
+    v_obs = vels[len(vels) // 2]  # 중앙값
+
+    alpha = 0.3
+    d_easy = float(base.get("d_easy", 20.0))
+    d_hard = float(base.get("d_hard", 75.0))
+    nb = dict(base)
+    if abs(difficulty_score - d_easy) <= abs(difficulty_score - d_hard):
+        nb["easy"] = round((1 - alpha) * float(base.get("easy", v_obs)) + alpha * v_obs, 3)
+    else:
+        nb["hard"] = round((1 - alpha) * float(base.get("hard", v_obs)) + alpha * v_obs, 3)
+    try:
+        nb["n_sessions"] = int(base.get("n_sessions", 0)) + 1
+    except (TypeError, ValueError):
+        nb["n_sessions"] = 1
+    user.scroll_baseline = nb
 from ..services.quiz_service import select_quiz_for_state, generate_ox_quiz
 
 router = APIRouter(prefix="/api/session", tags=["Sessions"])
@@ -25,12 +70,14 @@ async def start_session(req: SessionStartRequest, request: Request, db: AsyncSes
     user_result = await db.execute(select(User).filter(User.id == req.userId))
     user = user_result.scalars().first()
     if not user:
-        new_user = User(id=req.userId)
-        db.add(new_user)
+        user = User(id=req.userId)
+        db.add(user)
         try:
             await db.commit()
         except IntegrityError:
             await db.rollback()
+            # 경합으로 이미 생성됐으면 다시 조회
+            user = (await db.execute(select(User).filter(User.id == req.userId))).scalars().first()
 
     session_id = f"s_{uuid.uuid4().hex[:8]}"
     document_id = req.articleId or "doc"
@@ -43,13 +90,28 @@ async def start_session(req: SessionStartRequest, request: Request, db: AsyncSes
     db.add(new_session)
     await db.commit()
     
-    # 7/10: 온보딩 캘리브레이션 baselineScrollSpeed를 Redis에 보관
+    # 개인화 스크롤 baseline: 유저에 누적된 rolling baseline을 우선 사용하고, 없으면 온보딩값 사용.
+    # (rolling은 세션을 거칠수록 정교해지므로 신뢰도가 높다)
     redis_client = await get_redis()
-    if req.baselineScrollSpeed:
+    baseline_val = None
+    persisted = getattr(user, "scroll_baseline", None) if user else None
+    if isinstance(persisted, dict) and persisted.get("easy") is not None:
+        baseline_val = persisted
+    elif req.baselineScrollSpeed:
         baseline_val = {
             "easy": req.baselineScrollSpeed.easy,
-            "hard": req.baselineScrollSpeed.hard
+            "hard": req.baselineScrollSpeed.hard,
+            "d_easy": (req.baselineScrollSpeed.dEasy if req.baselineScrollSpeed.dEasy is not None else 20.0),
+            "d_hard": (req.baselineScrollSpeed.dHard if req.baselineScrollSpeed.dHard is not None else 75.0),
+            "n_sessions": 0,
         }
+        # 온보딩값을 유저에 초기 저장(다음 세션부터 rolling 갱신)
+        try:
+            user.scroll_baseline = baseline_val
+            await db.commit()
+        except Exception:
+            await db.rollback()
+    if baseline_val:
         await redis_client.set(f"session:{session_id}:baseline", json.dumps(baseline_val))
 
     host = request.headers.get("host", "localhost:8000")
@@ -137,7 +199,7 @@ async def process_events(session_id: str, req: EventsRequestModel):
                 "metadata": data
             })
 
-        # 7/10: 온보딩 캘리브레이션 baseline 로드
+        # 개인화 캘리브레이션 baseline 로드
         baseline_raw = await redis_client.get(f"session:{session_id}:baseline")
         baseline = None
         if baseline_raw:
@@ -146,8 +208,17 @@ async def process_events(session_id: str, req: EventsRequestModel):
             except Exception:
                 pass
 
+        # 글 난이도(2번) 로드 → 난이도-인지 스키밍 임계값에 사용
+        difficulty_score = None
+        textmeta_raw = await redis_client.get(f"session:{session_id}:textmeta")
+        if textmeta_raw:
+            try:
+                difficulty_score = json.loads(textmeta_raw).get("difficulty_score")
+            except Exception:
+                pass
+
         user_requested_quiz = any(e.get("type") == "request_quiz" for e in reading_events)
-        focus_score = calculate_focus_score(reading_events, baseline)
+        focus_score = calculate_focus_score(reading_events, baseline, difficulty_score)
         intervention_needed, intervention_level, msg = determine_intervention(focus_score)
         
         state = create_initial_state(session_id=session_id, user_id="", document_id="", raw_text="")
@@ -465,9 +536,17 @@ async def get_session_result(session_id: str, db: AsyncSession = Depends(get_db)
             session.duration_seconds = 0
             
         session.xp_earned = sum(ans.get("correct", False) * 10 for ans in initial_state.get("quiz_result", {}).get("answers", []))
-        
+
+        # ── 개인화 baseline rolling 갱신(EWMA) ──
+        # 이번 세션에서 "정상 읽기"로 스크롤한 속도(스키밍/0 제외)의 중앙값을 관측치로,
+        # 이 글 난이도에 가까운 캘리브레이션 점(easy/hard)을 EWMA로 당긴다 → 읽을수록 정교.
+        try:
+            _update_user_scroll_baseline(user, state_events, initial_state.get("difficulty_score", 50.0))
+        except Exception as _bl_err:
+            logging_import = __import__("logging"); logging_import.warning(f"baseline update skip: {_bl_err}")
+
         await db.commit()
-        
+
         return to_session_result(final_state)
     except Exception as e:
         import logging

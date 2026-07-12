@@ -7,6 +7,9 @@ class User(Base):
     __tablename__ = "users"
     id = Column(String, primary_key=True, index=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+    # 개인화 스크롤 baseline(rolling): {easy, hard, d_easy, d_hard, n_sessions}.
+    # 세션 종료(/result)마다 EWMA로 갱신되어 읽을수록 정교해진다.
+    scroll_baseline = Column(JSON, nullable=True)
 
 
 class ReadingSession(Base):

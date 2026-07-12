@@ -18,7 +18,7 @@ function loadUserId(): string | null {
 }
 
 /** 온보딩 캘리브레이션에서 측정한 개인별 기준 스크롤 속도 로드 */
-function loadBaseline(): { easy: number; hard: number } | null {
+function loadBaseline(): { easy: number; hard: number; dEasy?: number; dHard?: number } | null {
   try {
     const raw = localStorage.getItem(BASELINE_KEY);
     if (raw) {
@@ -59,7 +59,7 @@ interface SessionConfigState {
   uploadedContent: string[] | null; // 단락 배열
 
   /** 온보딩 캘리브레이션 — 개인별 기준 스크롤 속도 (px/ms) */
-  baselineScrollSpeed: { easy: number; hard: number } | null;
+  baselineScrollSpeed: { easy: number; hard: number; dEasy?: number; dHard?: number } | null;
   /** 캘리브레이션 완료 여부 */
   isCalibrated: boolean;
 
@@ -107,7 +107,14 @@ export const useSessionConfig = create<SessionConfigState>((set, get) => ({
   clearUpload: () => set({ mode: 'care', uploadedTitle: null, uploadedContent: null }),
 
   setBaseline: (easy, hard) => {
-    const baseline = { easy: parseFloat(easy.toFixed(3)), hard: parseFloat(hard.toFixed(3)) };
+    // 온보딩 쉬운/어려운 지문의 난이도(2번 척도). 지문이 고정이라 대표값으로 둔다.
+    // 백엔드가 이 dEasy/dHard로 "난이도별 개인 읽기 속도 직선"을 세운다.
+    const baseline = {
+      easy: parseFloat(easy.toFixed(3)),
+      hard: parseFloat(hard.toFixed(3)),
+      dEasy: 20,
+      dHard: 75,
+    };
     try {
       localStorage.setItem(BASELINE_KEY, JSON.stringify(baseline));
     } catch {

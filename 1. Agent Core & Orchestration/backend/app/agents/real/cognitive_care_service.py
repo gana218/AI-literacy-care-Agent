@@ -43,7 +43,54 @@ def _scroll_velocity(event: Dict[str, Any]) -> float:
         return 0.0
 
 
-def calculate_focus_score(events: List[Dict[str, Any]], baseline: Dict[str, int] = None) -> float:
+def _personalized_scroll_threshold(baseline: Dict[str, Any] = None, difficulty_score: float = None) -> float:
+    """온보딩 캘리브레이션 + 글 난이도로 개인화한 스키밍 임계값(px/ms).
+
+    개인의 "난이도별 편안한 읽기 속도" 직선을 두 캘리브레이션 점(easy/hard)으로 세우고,
+    지금 글 난이도 D에서의 예상 속도 × 여유계수 K를 임계값으로 쓴다.
+    → 어려운 글일수록 임계값↓(일찍 스키밍 판정), 쉬운 글일수록 임계값↑(과감점 방지).
+    온보딩 2점만 있을 땐 인구집단 기본값(1.5)과 신뢰도 가중 블렌딩한다(과적합 방지).
+
+    baseline 계약: {easy, hard, d_easy(기본20), d_hard(기본75), n_sessions}
+    """
+    DEFAULT = 1.5   # 인구집단 기본 임계(px/ms)
+    FLOOR = 0.4     # 하한(너무 예민해지지 않게)
+    K = 1.8         # 편안한 속도 대비 스키밍으로 볼 배수
+    if not baseline:
+        return DEFAULT
+    v_easy = baseline.get("easy")
+    v_hard = baseline.get("hard")
+    if v_easy is None or v_hard is None:
+        return DEFAULT
+    try:
+        v_easy = float(v_easy)
+        v_hard = float(v_hard)
+        d_easy = float(baseline.get("d_easy", 20.0))
+        d_hard = float(baseline.get("d_hard", 75.0))
+        D = float(difficulty_score) if difficulty_score is not None else (d_easy + d_hard) / 2.0
+    except (TypeError, ValueError):
+        return DEFAULT
+
+    # 개인 속도-난이도 선형 예측(보통 어려울수록 느리게 읽어 v_easy > v_hard).
+    if d_hard != d_easy:
+        slope = (v_hard - v_easy) / (d_hard - d_easy)
+        expected = v_easy + slope * (D - d_easy)
+    else:
+        expected = (v_easy + v_hard) / 2.0
+    expected = max(0.1, expected)
+    personal = max(FLOOR, expected * K)
+
+    # 신뢰도 블렌딩: rolling update 세션 수(n_sessions)가 쌓일수록 개인값을 더 신뢰.
+    try:
+        n = int(baseline.get("n_sessions", 0) or 0)
+    except (TypeError, ValueError):
+        n = 0
+    w = min(1.0, 0.5 + 0.1 * n)  # 온보딩만(n=0) → 0.5, 5세션 누적 → 1.0
+    threshold = w * personal + (1.0 - w) * DEFAULT
+    return max(FLOOR, threshold)
+
+
+def calculate_focus_score(events: List[Dict[str, Any]], baseline: Dict[str, Any] = None, difficulty_score: float = None) -> float:
     """
     행동 이벤트 리스트를 분석하여 0~100 사이의 실시간 집중도(Focus Score)를 계산합니다.
 
@@ -68,12 +115,9 @@ def calculate_focus_score(events: List[Dict[str, Any]], baseline: Dict[str, int]
     recent = events[-12:]
     score = 100.0
 
-    # 7/10: 온보딩 캘리브레이션 기반 스크롤 속도 임계치 설정 (디폴트 1.5 px/ms)
-    scroll_threshold = 1.5
-    if baseline and "easy" in baseline and "hard" in baseline:
-        avg_speed = (baseline["easy"] + baseline["hard"]) / 2.0
-        # 개인 평균 스크롤 속도의 2.0배를 스키밍 속도 감점 임계치로 동적 결정 (최소 0.4 px/ms 보장)
-        scroll_threshold = max(0.4, avg_speed * 2.0)
+    # 7/13: 난이도-인지 개인화 스키밍 임계값. 온보딩 캘리브레이션(easy/hard) + 글 난이도(2번)로
+    # "이 사람이·이 난이도 글을 얼마나 빨리 넘기면 안 읽는 것인가"를 판정. (기존 avg×2.0 마법값 폐기)
+    scroll_threshold = _personalized_scroll_threshold(baseline, difficulty_score)
 
     for event in recent:
         etype = event.get("type")

@@ -136,6 +136,10 @@ class ReadingSessionState(TypedDict):
     difficulty_score: NotRequired[float]   # 0~100, 높을수록 어려움(전문용어 밀도)
     readability_score: NotRequired[float]  # 0~100, 높을수록 읽기 쉬움(이독성) — 2번 독립변수
 
+    # --- 온보딩 캘리브레이션(개인화) ---
+    # {easy, hard, d_easy, d_hard, n_sessions} — 난이도-인지 스키밍 임계값에 사용.
+    scroll_baseline: NotRequired[dict]
+
     # --- 3번 Cognitive Care 산출 ---
     reading_events: list[ReadingEvent]
     focus_score: NotRequired[float]

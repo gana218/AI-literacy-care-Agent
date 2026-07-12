@@ -7,6 +7,9 @@ from datetime import datetime
 class BaselineScrollSpeed(BaseModel):
     easy: float
     hard: float
+    # 온보딩 지문 난이도(2번 difficulty_score). 미전송 시 기본 20/75.
+    dEasy: Optional[float] = None
+    dHard: Optional[float] = None
 
 class SessionStartRequest(BaseModel):
     userId: str
