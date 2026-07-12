@@ -14,7 +14,7 @@ interface FocusState {
   nudgeSummary: string | null;   // 동적으로 생성된 요약문 텍스트
   isNudgeVisible: boolean;
   isQuizVisible: boolean;
-  activeQuiz: QuizData | null;   // 7/6 추가: 서버가 전달한 실시간 퀴즈 데이터
+  activeQuizzes: QuizData[] | null;   // 7/6 추가: 서버가 전달한 실시간 퀴즈 데이터 배열
 
   setFocusScore: (score: number) => void;
   setNudgeLevel: (level: NudgeLevel) => void;
@@ -22,7 +22,7 @@ interface FocusState {
   dismissNudge: () => void;
   showQuiz: () => void;
   dismissQuiz: () => void;
-  setActiveQuiz: (quiz: QuizData | null) => void; // 7/6 추가: 퀴즈 주입
+  setActiveQuizzes: (quizzes: QuizData[] | null) => void; // 7/6 추가: 퀴즈 주입
   reset: () => void;
 }
 
@@ -33,7 +33,7 @@ export const useFocusStore = create<FocusState>((set) => ({
   nudgeSummary: null,
   isNudgeVisible: false,
   isQuizVisible: false,
-  activeQuiz: null,
+  activeQuizzes: null,
 
   setFocusScore: (focusScore) => set({ focusScore }),
   setNudgeLevel: (nudgeLevel) => set({ nudgeLevel }),
@@ -41,7 +41,7 @@ export const useFocusStore = create<FocusState>((set) => ({
   dismissNudge: () => set({ isNudgeVisible: false, nudgeLevel: 'none', nudgeMessage: null, nudgeSummary: null }),
   showQuiz: () => set({ isQuizVisible: true }),
   dismissQuiz: () => set({ isQuizVisible: false }),
-  setActiveQuiz: (activeQuiz) => set({ activeQuiz }),
+  setActiveQuizzes: (activeQuizzes) => set({ activeQuizzes }),
   reset: () =>
     set({
       focusScore: 100,
@@ -50,7 +50,7 @@ export const useFocusStore = create<FocusState>((set) => ({
       nudgeSummary: null,
       isNudgeVisible: false,
       isQuizVisible: false,
-      activeQuiz: null,
+      activeQuizzes: null,
     }),
 }));
 export default useFocusStore;

@@ -69,7 +69,7 @@ def to_intervention_command(state: ReadingSessionState) -> dict[str, Any]:
     if front_type == "highlight":
         payload["highlights"] = _highlights(state, intervention)
     elif front_type == "quiz" and "quiz_data" in intervention:
-        payload["quiz"] = intervention["quiz_data"]
+        payload["quizzes"] = intervention["quiz_data"]
 
     return {"type": front_type, "payload": payload}
 

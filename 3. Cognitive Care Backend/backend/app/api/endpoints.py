@@ -139,14 +139,28 @@ async def process_events(session_id: str, req: EventsRequestModel):
             except Exception:
                 pass
 
+        user_requested_quiz = any(e.get("type") == "request_quiz" for e in reading_events)
         focus_score = calculate_focus_score(reading_events, baseline)
         intervention_needed, intervention_level, msg = determine_intervention(focus_score)
         
+        state = create_initial_state(session_id=session_id, user_id="", document_id="", raw_text="")
+        state["reading_events"] = reading_events
+        
+        from .frontend_contract import _completion_rate
+        current_progress = _completion_rate(state)
+        
+        if user_requested_quiz:
+            intervention_needed = True
+            intervention_level = "hard"
+            msg = "요청하신 이해도 퀴즈입니다."
+        elif current_progress >= 100:
+            intervention_needed = True
+            intervention_level = "hard"
+            msg = "끝까지 다 읽으셨군요! 마무리 퀴즈를 풀어보세요. 📝"
+            
         level_to_type = {"none": "none", "soft": "highlight", "medium": "nudge", "hard": "quiz"}
         internal_type = level_to_type.get(intervention_level, "none")
         
-        state = create_initial_state(session_id=session_id, user_id="", document_id="", raw_text="")
-        state["reading_events"] = reading_events
         state["focus_score"] = focus_score
         state["intervention"] = {
             "level": intervention_level,
@@ -165,16 +179,24 @@ async def process_events(session_id: str, req: EventsRequestModel):
                 state["chunks"] = json.loads(chunks_raw)
                 state["asked_quiz_ids"] = json.loads(asked_raw) if asked_raw else []
                 
-                selected_quiz = select_quiz_for_state(state)
-                if selected_quiz:
-                    state["intervention"]["quiz_data"] = selected_quiz
+                # 100% 도달 시, 이미 풀었던 문제라도 다시 제공하여 마무리 퀴즈가 뜨도록 함
+                is_finishing = current_progress >= 100
+                selected_quizzes = select_quiz_for_state(state, ignore_asked=is_finishing)
+                if selected_quizzes:
+                    state["intervention"]["quiz_data"] = selected_quizzes
                     # 출제 기록 업데이트
-                    state["asked_quiz_ids"].append(selected_quiz["quizId"])
+                    for q in selected_quizzes:
+                        state["asked_quiz_ids"].append(q["quizId"])
                     await redis_client.set(f"session:{session_id}:asked_quizzes", json.dumps(state["asked_quiz_ids"]))
                 else:
-                    # 적절한 퀴즈가 없으면 medium(nudge) 수준으로 강등
-                    state["intervention"]["level"] = "medium"
-                    state["intervention"]["type"] = "nudge"
+                    # 적절한 퀴즈가 없으면
+                    if current_progress >= 100 and not user_requested_quiz:
+                        state["intervention"]["level"] = "none"
+                        state["intervention"]["type"] = "none"
+                        state["intervention"]["message"] = ""
+                    else:
+                        state["intervention"]["level"] = "medium"
+                        state["intervention"]["type"] = "nudge"
         
         return to_intervention_command(state)
     finally:

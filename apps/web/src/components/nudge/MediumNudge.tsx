@@ -23,7 +23,7 @@ export const MediumNudge: React.FC<MediumNudgeProps> = ({ message, onEscalate })
 
   const handleEscalate = () => {
     // Medium → Hard + QuizCard 표시
-    useReadingStore.getState().addEvent({
+    useReadingStore.getState().enqueueEvent({
       type: 'request_quiz',
       timestamp_ms: Date.now(),
       metadata: { requested_by: 'user_escalation' }

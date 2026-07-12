@@ -86,7 +86,7 @@ export interface InterventionCommand {
     nudgeLevel?: 'soft' | 'medium' | 'hard';
     nudgeMessage?: string;
     // quiz
-    quiz?: QuizData;
+    quizzes?: QuizData[];
     // highlight
     highlights?: HighlightRange[];
     // score_update (실시간 갱신)
@@ -149,7 +149,7 @@ export interface GrowthReportResponse {
 // API fetch stub (TODO 7/6 실구현)
 // ──────────────────────────────────────────────
 
-const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000';
+const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://127.0.0.1:8000';
 
 export const api = {
   /** 세션 시작 — 기사 로드 및 REST 엔드포인트 수신 */
@@ -221,6 +221,7 @@ export const api = {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ session_id: sessionId, events }),
+      keepalive: true,
     });
     if (res.ok) {
       const data = await res.json();

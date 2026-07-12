@@ -140,11 +140,13 @@ async def get_user_growth(user_id: str, db: AsyncSession = Depends(get_db)):
             )
             # 파싱 시도
             try:
-                # 불필요한 마크다운 백틱 제거
-                clean_json = llm_response.replace("```json", "").replace("```", "").strip()
-                parsed = json.loads(clean_json)
-                if isinstance(parsed, list) and len(parsed) > 0:
-                    prescription_html = parsed
+                import re
+                clean_json = llm_response.replace("\n", " ")
+                match = re.search(r'\[.*\]', clean_json)
+                if match:
+                    parsed = json.loads(match.group(0))
+                    if isinstance(parsed, list) and len(parsed) > 0:
+                        prescription_html = parsed
             except Exception as e:
                 print(f"Failed to parse LLM prescription: {e}")
         except Exception as e:
