@@ -69,7 +69,22 @@ def to_intervention_command(state: ReadingSessionState) -> dict[str, Any]:
     if front_type == "highlight":
         payload["highlights"] = _highlights(state, intervention)
     elif front_type == "quiz" and "quiz_data" in intervention:
-        payload["quizzes"] = intervention["quiz_data"]
+        # [C2] answer와 explanation 제거하여 정답 유출 방지 (_public_quiz)
+        public_quizzes = []
+        for q in intervention["quiz_data"]:
+            pub_q = {
+                "quizId": q.get("quizId"),
+                "type": q.get("type", "ox"),
+                "question": q.get("question"),
+                "statement": q.get("statement"),
+                "options": q.get("options", ["O", "X"]),
+                "sourceChunkId": q.get("sourceChunkId")
+            }
+            public_quizzes.append(pub_q)
+        payload["quizzes"] = public_quizzes
+        if public_quizzes:
+            # [M4] 단수(확장 프로그램용) 및 복수(웹 프론트용) 계약 만족
+            payload["quiz"] = public_quizzes[0]
 
     return {"type": front_type, "payload": payload}
 

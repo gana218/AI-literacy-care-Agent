@@ -175,34 +175,74 @@ async def process_events(session_id: str, req: EventsRequestModel):
             quizzes_raw = await redis_client.get(f"session:{session_id}:quizzes")
             chunks_raw = await redis_client.get(f"session:{session_id}:chunks")
             asked_raw = await redis_client.get(f"session:{session_id}:asked_quizzes")
+            last_quiz_time_raw = await redis_client.get(f"session:{session_id}:last_quiz_time")
+            finish_quiz_shown_raw = await redis_client.get(f"session:{session_id}:finish_quiz_shown")
             
             if quizzes_raw and chunks_raw:
                 state["quizzes"] = json.loads(quizzes_raw)
                 state["chunks"] = json.loads(chunks_raw)
                 state["asked_quiz_ids"] = json.loads(asked_raw) if asked_raw else []
                 
-                # 100% 도달 시, 이미 풀었던 문제라도 다시 제공하여 마무리 퀴즈가 뜨도록 함
+                import time
+                current_time = time.time()
+                last_quiz_time = float(last_quiz_time_raw) if last_quiz_time_raw else 0.0
+                finish_quiz_shown = bool(finish_quiz_shown_raw)
+                
+                # M3: 쿨다운(25초) 및 상한(최대 3번) 체크
                 is_finishing = current_progress >= 100
-                selected_quizzes = select_quiz_for_state(state, ignore_asked=is_finishing)
-                if selected_quizzes:
-                    state["intervention"]["quiz_data"] = selected_quizzes
-                    # 출제 기록 업데이트
-                    for q in selected_quizzes:
-                        state["asked_quiz_ids"].append(q["quizId"])
-                    await redis_client.set(f"session:{session_id}:asked_quizzes", json.dumps(state["asked_quiz_ids"]))
+                can_show_quiz = True
+                
+                if user_requested_quiz:
+                    can_show_quiz = True
+                elif is_finishing:
+                    if finish_quiz_shown:
+                        can_show_quiz = False
                 else:
-                    # 적절한 퀴즈가 없으면
-                    if current_progress >= 100 and not user_requested_quiz:
-                        state["intervention"]["level"] = "none"
-                        state["intervention"]["type"] = "none"
-                        state["intervention"]["message"] = ""
+                    if current_time - last_quiz_time < 25.0:
+                        can_show_quiz = False
+                    if len(state["asked_quiz_ids"]) >= 3:
+                        can_show_quiz = False
+
+                if can_show_quiz:
+                    # 완독 마무리 퀴즈는 최대 1번만
+                    selected_quizzes = select_quiz_for_state(state, ignore_asked=False)
+                    
+                    # [C1] JIT 퀴즈가 생성되었을 수 있으므로 quizzes를 Redis에 다시 저장
+                    await redis_client.set(f"session:{session_id}:quizzes", json.dumps(state["quizzes"]))
+                    
+                    if selected_quizzes:
+                        # [M3] 한 번에 최대 1개만 반환하도록 제한
+                        selected_quiz = [selected_quizzes[0]]
+                        state["intervention"]["quiz_data"] = selected_quiz
+                        
+                        # 출제 기록 업데이트
+                        for q in selected_quiz:
+                            state["asked_quiz_ids"].append(q["quizId"])
+                        await redis_client.set(f"session:{session_id}:asked_quizzes", json.dumps(state["asked_quiz_ids"]))
+                        await redis_client.set(f"session:{session_id}:last_quiz_time", str(current_time))
+                        
+                        if is_finishing:
+                            await redis_client.set(f"session:{session_id}:finish_quiz_shown", "1")
                     else:
-                        state["intervention"]["level"] = "medium"
-                        state["intervention"]["type"] = "nudge"
+                        # 적절한 퀴즈가 없으면
+                        if is_finishing and not user_requested_quiz:
+                            state["intervention"]["level"] = "none"
+                            state["intervention"]["type"] = "none"
+                            state["intervention"]["message"] = ""
+                        else:
+                            state["intervention"]["level"] = "medium"
+                            state["intervention"]["type"] = "nudge"
+                else:
+                    # 퀴즈를 띄울 수 없으면 강제로 none 또는 nudge 처리
+                    state["intervention"]["level"] = "none"
+                    state["intervention"]["type"] = "none"
+                    state["intervention"]["message"] = ""
         
         return to_intervention_command(state)
-    finally:
-        pass
+    except Exception as e:
+        import logging
+        logging.error(f"Error in process_events: {e}")
+        raise
 
 @router.post("/{session_id}/quiz/submit", response_model=QuizSubmitResponse)
 async def submit_quiz(session_id: str, req: QuizSubmitRequest):
@@ -308,8 +348,10 @@ async def finish_session(
             message="Session finished and flushed to PostgreSQL.",
             saved_events_count=saved_count
         )
-    finally:
-        pass
+    except Exception as e:
+        import logging
+        logging.error(f"Error in finish_session: {e}")
+        raise
 
 @router.get("/{session_id}/result")
 async def get_session_result(session_id: str, db: AsyncSession = Depends(get_db)):
@@ -389,9 +431,30 @@ async def get_session_result(session_id: str, db: AsyncSession = Depends(get_db)
             initial_state.setdefault("errors", []).append({"step": "qa_evaluation", "error": str(_qa_err)})
 
         final_state = run_reading_session(initial_state)
+
+        # [C3] DB에 세션 결과 저장
+        session.literacy_score = final_state.get("literacy_score", 50.0)
+        score_breakdown = final_state.get("score_breakdown", {})
+        session.comprehension_score = score_breakdown.get("comprehension_score", 50.0)
+        session.engagement_score = score_breakdown.get("engagement_score", 50.0)
+        
+        # duration_seconds 계산 (첫 이벤트와 마지막 이벤트의 timestamp 차이)
+        if state_events:
+            start_ts = state_events[0].get("timestamp_ms", 0)
+            end_ts = state_events[-1].get("timestamp_ms", start_ts)
+            session.duration_seconds = max(0, int((end_ts - start_ts) / 1000.0))
+        else:
+            session.duration_seconds = 0
+            
+        session.xp_earned = sum(ans.get("correct", False) * 10 for ans in initial_state.get("quiz_result", {}).get("answers", []))
+        
+        await db.commit()
+        
         return to_session_result(final_state)
-    finally:
-        pass
+    except Exception as e:
+        import logging
+        logging.error(f"Error in get_session_result: {e}")
+        raise
 
 @router.post("/{session_id}/explain", response_model=TermExplainResponse)
 async def explain_term(
