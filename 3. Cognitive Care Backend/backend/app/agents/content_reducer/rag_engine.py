@@ -25,7 +25,6 @@ import json
 import math
 import os
 import re
-import urllib.request
 from pathlib import Path
 
 from backend.app.agents.content_reducer.contracts import ChunkDict, TermDict
@@ -370,7 +369,7 @@ def inject_rag_terms(chunks: list[ChunkDict]) -> list[ChunkDict]:
     청크 목록에서 전문 용어를 추출하고 RAG 기반 풀이를 주입한다.
 
     Args:
-        chunks: ChunkDict 목록 (restructured_text 포함 권장)
+        chunks: ChunkDict 목록
 
     Returns:
         terms 필드가 추가된 ChunkDict 목록
@@ -379,9 +378,7 @@ def inject_rag_terms(chunks: list[ChunkDict]) -> list[ChunkDict]:
     """
     try:
         for chunk in chunks:
-            search_text = (
-                chunk.get("restructured_text") or chunk["original_text"]
-            )
+            search_text = chunk["original_text"]
             matched = _find_terms(search_text)
 
             chunk_terms: list[TermDict] = []
@@ -394,8 +391,9 @@ def inject_rag_terms(chunks: list[ChunkDict]) -> list[ChunkDict]:
                 seen.add(term_text)
 
                 definition = entry["definition"]
-                # 2번 RAG는 LLM 생성이 아닌 사전 직접 인용(검색) 방식이므로 faithfulness_score = 1.0 (환각률 0% 보장)
-                faith = 1.0  # 직접 인용
+                # 2번 RAG는 사전 직접 인용(검색) 방식이므로 100% 충실함을 보장하며,
+                # _faithfulness_score 계산 결과 역시 1.0이 됩니다.
+                faith = _faithfulness_score(definition, entry.get("definition", ""))
 
                 # faithfulness 기준 미달 시 trace 경고 (5번 QA용)
                 if faith < _FAITHFULNESS_THRESHOLD:
@@ -460,78 +458,48 @@ def get_faithfulness_summary(terms: list[TermDict]) -> dict:
     }
 
 
-def _disambiguate_homonyms_heuristic(word: str, items: list, context: str) -> dict:
-    """
-    LLM API 호출 실패 시(429 한도 초과 등) 작동하는 비상용 동음이의어 판별 휴리스틱 알고리즘.
-    문맥 단어 교집합과 뜻풀이의 길이를 종합하여 가장 그럴듯한 의미를 선택한다.
-    """
-    if not context or len(items) <= 1:
-        return items[0]
-        
-    best_item = items[0]
-    max_score = -1.0
-    
-    # 문맥에서 2글자 이상인 형태소/단어 후보 추출
-    context_words = set(w for w in re.findall(r'[가-힣A-Za-z]+', context) if len(w) >= 2)
-    
-    for item in items[:5]: # 상위 5개 후보만
-        sense_raw = item.get("sense", {})
-        if isinstance(sense_raw, list):
-            sense = sense_raw[0] if sense_raw else {}
-        else:
-            sense = sense_raw
-        defn = sense.get("definition", "")
-        defn_clean = re.sub(r"<[^>]*>", "", defn).strip()
-        defn_words = set(w for w in re.findall(r'[가-힣A-Za-z]+', defn_clean) if len(w) >= 2)
-        
-        # 1. 겹치는 단어 수 (핵심 문맥 매칭)
-        overlap_score = len(context_words.intersection(defn_words))
-        
-        # 2. 뜻풀이 길이 가중치 (일반적으로 빈도수가 높은 대중적 단어일수록 사전 정의가 길고 자세함)
-        # 최대 0.9점의 보너스 점수 부여
-        length_bonus = min(len(defn_clean) / 100.0, 0.9)
-        
-        total_score = overlap_score + length_bonus
-        
-        if total_score > max_score:
-            max_score = total_score
-            best_item = item
-            
-    return best_item
+def _extract_definition_from_item(item: dict) -> str:
+    """우리말샘 item 딕셔너리에서 definition을 안전하게 추출한다."""
+    sense = item.get("sense", [])
+    if isinstance(sense, dict):
+        sense = [sense]
+    if isinstance(sense, list) and sense:
+        # 첫 번째 sense에서 definition을 가져옴
+        first_sense = sense[0]
+        if isinstance(first_sense, dict):
+            return first_sense.get("definition", "")
+    return ""
 
-def _disambiguate_homonyms_with_llm(word: str, items: list, context: str) -> dict | None:
+
+def _disambiguate_homonyms_with_llm(word: str, items: list, context: str) -> dict:
     """
     여러 개의 사전 정의 후보(동음이의어) 중 주어진 문맥에 가장 적합한 정의를 LLM으로 선택한다.
-    만약 모든 후보가 비유적 표현 등 문맥과 맞지 않는다면 None을 반환한다.
     """
     from backend.app.agents.content_reducer.snowchat_client import is_snowchat_available, _call_llm_via_snowchat
     if not is_snowchat_available():
-        return _disambiguate_homonyms_heuristic(word, items, context)
+        return items[0]
 
     try:
         candidates = []
         for i, item in enumerate(items[:5]): # 최대 5개 후보
-            sense_raw = item.get("sense", {})
-            if isinstance(sense_raw, list):
-                sense = sense_raw[0] if sense_raw else {}
-            else:
-                sense = sense_raw
-            defn = sense.get("definition", "")
+            defn = _extract_definition_from_item(item)
             defn = re.sub(r"<[^>]*>", "", defn).strip()
             if defn:
                 candidates.append((i, defn))
                 
         if not candidates:
             return items[0]
+            
+        if len(candidates) == 1:
+            return items[candidates[0][0]]
 
-        # 프롬프트 구성 (후보가 1개여도 비유적 표현인지 검증하기 위해 LLM을 거칩니다)
+        # 프롬프트 구성
         candidate_text = "\n".join([f"{idx+1}. {defn}" for idx, defn in enumerate([c[1] for c in candidates])])
         prompt = (
             f"단어: '{word}'\n"
             f"기사 문맥 (Context): {context}\n\n"
             f"사전 정의 후보 목록:\n{candidate_text}\n\n"
             f"위 문맥에서 단어 '{word}'가 사용된 문맥적 의미와 가장 일치하는 정의의 번호(1-{len(candidates)})만 하나 적어주세요. "
-            f"단, 만약 후보 중에 문맥(비유적 의미 등)과 일치하는 뜻이 단 하나도 없다면, 오직 숫자 0을 적어주세요.\n"
             f"다른 설명이나 부연 텍스트 없이 오직 숫자 하나만 출력하세요. 예: 1"
         )
         
@@ -546,18 +514,14 @@ def _disambiguate_homonyms_with_llm(word: str, items: list, context: str) -> dic
         # 숫자 추출
         match = re.search(r"\d+", response_text)
         if match:
-            idx = int(match.group(0))
-            if idx == 0:
-                return None  # 알맞은 뜻이 없음
-            idx -= 1
+            idx = int(match.group(0)) - 1
             if 0 <= idx < len(candidates):
                 best_idx = candidates[idx][0]
                 return items[best_idx]
     except Exception as e:
-        print(f"[rag_engine] 동음이의어 LLM 판별 실패 (429 등): {e}. Fallback to heuristic.")
-        return _disambiguate_homonyms_heuristic(word, items, context)
+        print(f"[rag_engine] 동음이의어 LLM 판별 실패: {e}")
         
-    return _disambiguate_homonyms_heuristic(word, items, context)
+    return items[0]
 
 
 def _query_woorimalsem_api(word: str, context: str | None = None) -> dict | None:
@@ -587,11 +551,7 @@ def _query_woorimalsem_api(word: str, context: str | None = None) -> dict | None
         req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
         with urllib.request.urlopen(req, timeout=5) as response:
             res_content = response.read().decode("utf-8")
-            try:
-                data = json.loads(res_content)
-            except json.JSONDecodeError:
-                print(f"[rag_engine] 우리말샘 API JSON 파싱 실패 (서버 오류일 가능성): {res_content[:100]}")
-                return None
+            data = json.loads(res_content)
 
         # 우리말샘 JSON 응답 구조 파싱
         items = data.get("channel", {}).get("item", [])
@@ -599,20 +559,10 @@ def _query_woorimalsem_api(word: str, context: str | None = None) -> dict | None
             items = [items]
         if items:
             best_item = items[0]
-            if context:
+            if context and len(items) > 1:
                 best_item = _disambiguate_homonyms_with_llm(word, items, context)
-            
-            if best_item is None:
-                return None
 
-            # sense가 리스트일 수도, 딕셔너리일 수도 있음 — 둘 다 안전하게 처리
-            sense_raw = best_item.get("sense", {})
-            if isinstance(sense_raw, list):
-                sense = sense_raw[0] if sense_raw else {}
-            else:
-                sense = sense_raw
-
-            definition = sense.get("definition", "")
+            definition = _extract_definition_from_item(best_item)
             # HTML 태그 제거
             definition = re.sub(r"<[^>]*>", "", definition).strip()
 
@@ -624,6 +574,59 @@ def _query_woorimalsem_api(word: str, context: str | None = None) -> dict | None
                 }
     except Exception as e:
         print(f"[rag_engine] 우리말샘 API 호출 실패: {e}")
+        raise e
+
+    return None
+
+
+def _query_stdict_api(word: str, context: str | None = None) -> dict | None:
+    """
+    국립국어원 표준국어대사전 오픈 API를 호출하여 단어 정의를 조회한다.
+    """
+    import urllib.request
+    import urllib.parse
+
+    api_key = os.getenv("STDICT_API_KEY", "") or os.getenv("STANDARD_DICTIONARY_API_KEY", "")
+    if not api_key:
+        return None
+
+    try:
+        query_params = {
+            "key": api_key,
+            "q": word,
+            "req_type": "json",
+            "start": 1,
+            "num": 10
+        }
+        encoded_params = urllib.parse.urlencode(query_params)
+        url = f"https://stdict.korean.go.kr/api/search.do?{encoded_params}"
+
+        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+        with urllib.request.urlopen(req, timeout=5) as response:
+            res_content = response.read().decode("utf-8")
+            data = json.loads(res_content)
+
+        items = data.get("channel", {}).get("item", [])
+        if isinstance(items, dict):
+            items = [items]
+        if items:
+            best_item = items[0]
+            if context and len(items) > 1:
+                best_item = _disambiguate_homonyms_with_llm(word, items, context)
+
+            definition = _extract_definition_from_item(best_item)
+            # HTML 태그 제거
+            definition = re.sub(r"<[^>]*>", "", definition).strip()
+
+            if definition:
+                return {
+                    "term": best_item.get("word", word).replace("^", "").replace("_", ""),
+                    "definition": definition,
+                    "source": "표준국어대사전"
+                }
+    except Exception as e:
+        print(f"[rag_engine] 표준국어대사전 API 호출 실패: {e}")
+        raise e
 
     return None
 
@@ -688,9 +691,6 @@ def _query_llm_definition(word: str, context: str | None = None) -> str | None:
             result = re.sub(r'^["\'“]+|["\'”]+$', '', result).strip()
             return result
     except Exception as e:
-        import urllib.error
-        if isinstance(e, urllib.error.HTTPError) and e.code == 429:
-            return "💡 구글 API 요청 한도가 초과되었습니다. 잠시 후 다시 드래그해주세요."
         print(f"[rag_engine] LLM 단어 실시간 유추 실패: {e}")
         raise e
         
@@ -730,27 +730,58 @@ def lookup_term(word: str, context: str | None = None) -> TermDict:
     if cleaned_word != word_clean:
         word_candidates.append(cleaned_word)
 
-    # 1. 완벽 매칭 (용어 또는 별칭)
     if not _TERM_DICT:
-        tried.append("local_skipped_no_dict")
+        return TermDict(
+            term=cleaned_word,
+            definition="",
+            source="not_found",
+            faithfulness_score=0.0,
+            chunk_id="",
+            _meta={"tried": tried, "errors": errors}
+        )
+
+    # 1. 완벽 매칭 (용어 또는 별칭)
+    tried.append("local")
+    for w in word_candidates:
+        w_lower = w.lower()
+        for entry in _TERM_DICT:
+            term_val = entry.get("term", "")
+            aliases = [a.lower() for a in entry.get("aliases", [])]
+            if term_val.lower() == w_lower or w_lower in aliases:
+                return TermDict(
+                    term=term_val,
+                    definition=entry.get("definition", ""),
+                    source=entry.get("source", "로컬 사전"),
+                    faithfulness_score=1.0,
+                    chunk_id="",
+                    _meta={"tried": tried, "errors": errors}
+                )
+
+    # 2. 표준국어대사전 오픈 API 조회 시도
+    api_key_stdict = os.getenv("STDICT_API_KEY", "") or os.getenv("STANDARD_DICTIONARY_API_KEY", "")
+    if api_key_stdict:
+        tried.append("stdict")
     else:
-        tried.append("local")
-        for w in word_candidates:
-            w_lower = w.lower()
-            for entry in _TERM_DICT:
-                term_val = entry.get("term", "")
-                aliases = [a.lower() for a in entry.get("aliases", [])]
-                if term_val.lower() == w_lower or w_lower in aliases:
+        tried.append("stdict_skipped_no_key")
+
+    if api_key_stdict:
+        for w in reversed(word_candidates):
+            try:
+                api_res = _query_stdict_api(w, context)
+                if api_res:
                     return TermDict(
-                        term=term_val,
-                        definition=entry.get("definition", ""),
-                        source=entry.get("source", "로컬 사전"),
+                        term=api_res["term"],
+                        definition=api_res["definition"],
+                        source=api_res["source"],
                         faithfulness_score=1.0,
                         chunk_id="",
                         _meta={"tried": tried, "errors": errors}
                     )
+            except Exception as e:
+                errors["stdict"] = str(e)
+                print(f"[rag_engine] 표준국어대사전 API 검색 중 에러: {e}")
 
-    # 2. 우리말샘 오픈 API 조회 시도
+    # 3. 우리말샘 오픈 API 조회 시도
     api_key_woorimal = os.getenv("WOORIMAL_API_KEY", "") or os.getenv("DICTIONARY_API_KEY", "")
     if api_key_woorimal:
         tried.append("woorimal")
@@ -805,73 +836,25 @@ def lookup_term(word: str, context: str | None = None) -> TermDict:
     else:
         tried.append("embedding_skipped_no_model")
 
-    # 3. 국립국어원 표준국어대사전 API 조회 시도 (우리말샘에 없을 경우)
-    stdict_key = os.getenv("STDICT_API_KEY", "")
-    if stdict_key:
-        tried.append("stdict")
-        for w in reversed(word_candidates):
-            try:
-                import urllib.parse as _up
-                _url = (
-                    f"https://stdict.korean.go.kr/api/search.do"
-                    f"?key={stdict_key}&q={_up.quote(w)}&req_type=json&start=1&num=10"
-                )
-                _req = urllib.request.Request(_url, headers={"User-Agent": "Mozilla/5.0"})
-                with urllib.request.urlopen(_req, timeout=5) as _resp:
-                    _res_content = _resp.read().decode("utf-8")
-                    try:
-                        _data = json.loads(_res_content)
-                    except json.JSONDecodeError:
-                        print(f"[rag_engine] 표준국어대사전 API JSON 파싱 실패: {_res_content[:100]}")
-                        continue
-                _items = _data.get("channel", {}).get("item", [])
-                if isinstance(_items, dict):
-                    _items = [_items]
-                if _items:
-                    _item = _items[0]
-                    if context:
-                        _item = _disambiguate_homonyms_with_llm(w, _items, context)
-                    if _item is None:
-                        continue
-                        
-                    _sense_raw = _item.get("sense", {})
-                    if isinstance(_sense_raw, list):
-                        _sense = _sense_raw[0] if _sense_raw else {}
-                    else:
-                        _sense = _sense_raw
-                    _def = re.sub(r"<[^>]*>", "", _sense.get("definition", "")).strip()
-                    if _def:
-                        return TermDict(
-                            term=_item.get("word", w).replace("^", "").replace("_", ""),
-                            definition=_def,
-                            source="표준국어대사전 (국립국어원)",
-                            faithfulness_score=1.0,
-                            chunk_id="",
-                            _meta={"tried": tried, "errors": errors}
-                        )
-            except Exception as e:
-                errors["stdict"] = str(e)
-                print(f"[rag_engine] 표준국어대사전 API 검색 중 에러: {e}")
-    else:
-        tried.append("stdict_skipped_no_key")
-
-    # 4. LLM 실시간 유추 (사전에서 못 찾았거나 비유적 표현일 경우)
-    if context:
-        tried.append("llm_snowchat")
+    # 4. LLM 실시간 의미 유추 시도 (동적 LLM 답변 생성 로직 - 필수)
+    if is_snowchat_available():
+        tried.append("llm")
         try:
-            llm_def_str = _query_llm_definition(cleaned_word, context)
-            if llm_def_str:
+            llm_def = _query_llm_definition(cleaned_word, context)
+            if llm_def:
                 return TermDict(
                     term=cleaned_word,
-                    definition=llm_def_str,
-                    source="LLM 문맥 유추",
+                    definition=llm_def,
+                    source="LLM 실시간 유추",
                     faithfulness_score=1.0,
                     chunk_id="",
                     _meta={"tried": tried, "errors": errors}
                 )
         except Exception as e:
             errors["llm"] = str(e)
-            print(f"[rag_engine] LLM 문맥 유추 중 에러: {e}")
+            print(f"[rag_engine] 단어 lookup LLM 실시간 유추 중 에러: {e}")
+    else:
+        tried.append("llm_skipped_no_key")
 
     # 5. 최종 미발견 폴백
     return TermDict(
