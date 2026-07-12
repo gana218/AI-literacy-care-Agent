@@ -282,3 +282,54 @@ comprehension_score = comprehension_rate * 100
 
 **3번은 §5(생성·트리거·채점)와 §6의 `quiz_answers` 계약, §4의 `position`(본문 기준) 전제만 지키면 이 문서만으로 구현 가능해.**
 `generate_ox_quiz` / `pick_quiz`의 시그니처와 `quiz_data`·`quiz_answers` 필드만 확정해서 알려주면, 1번 쪽 배선(개입 주입·payload 노출·확장 overlay·진행률·score.py)은 내가 바로 붙일게. 🙌
+
+---
+
+## 11. Canonical O/X 계약 (2026-07-12 정렬 — 1번·3번·4번 단일 기준)
+
+두 OX 구현(1번 오케스트레이터 · 3번 Cognitive Care 백엔드)과 프론트(4번 QuizCard)를 하나로
+맞춘 최종 계약. **이후 이 절이 기준이다.**
+
+### 11-1. 퀴즈 객체 shape (생성 결과)
+`generate_ox_quiz(summary, paragraph, chunk_id, session_id)` 반환:
+```jsonc
+{
+  "quizId": "quiz_{session}_{chunk}",
+  "type": "ox",
+  "question": "이 문단은 …라고 설명한다.",  // 프론트 QuizCard가 렌더(= statement)
+  "statement": "…",                        // 확장 overlay.quiz 호환(동일 값)
+  "options": ["O", "X"],                   // length===2 → QuizCard가 O/X 2버튼 모드
+  "answer": true,                           // 서버 전용(프론트로 절대 안 나감)
+  "explanation": "…",                       // 서버 전용(채점 응답에서만 반환)
+  "sourceChunkId": "{chunk}"
+}
+```
+- **생성**: 4지선다(`generate_quiz`)에 O/X 버튼 붙이던 방식 폐기. 2번 `chunk.summary`로 참·거짓
+  진술문을 만든다(요약 폴백: `summary`→`restructured_text`→`original_text`).
+- **payload 노출**: `to_intervention_command`의 `_public_quiz`가 `answer`·`explanation`을 제거하고
+  `question`/`statement`/`options`만 내보낸다. → 정답 위조 불가(서버 채점).
+
+### 11-2. 채점(제출) 계약
+```jsonc
+// 요청  POST /api/session/{id}/quiz/submit
+{ "quizId": "quiz_…", "selectedOption": "O" }     // "O" | "X"
+// 응답
+{ "correct": true, "explanation": "…", "focusRecovered": 15, "xpEarned": 10 }
+```
+- **서버 채점**: 캐시된 `answer`와 `selectedOption`("O"=true) 비교. 클라이언트가 정답을
+  보내지 않는다. (3번 구버전의 `correctOption`/`selectedIndex` 클라이언트 채점·중복 라우트는 폐기.)
+- **이해도 반영**: role-1은 `quiz_answers`(문항별) 실측, 3번은 Redis `quiz_result`(집계) 누적 →
+  둘 다 `score.py`가 소비(집계는 fallback 경로). `measured=True`.
+
+### 11-3. 채택 근거(둘 중 나은 것)
+| 항목 | 채택 | 폐기 |
+|---|---|---|
+| 생성 | 순수 O/X 진술문(`generate_ox_quiz`+summary) | 4지선다 질문에 O/X 버튼(의미 불일치) |
+| 채점 | 서버 채점(정답 미노출) | 클라이언트가 정답 전송 |
+| shape | `question`+`options:["O","X"]`(프론트 호환)+`statement`(확장) | `statement`만 / `question`만 |
+| 트리거 | role-1 `pick_quiz`(A 집중하락/B 측정보장·쿨다운·상하한) | 단순 position 선택만 |
+
+### 11-4. [4번] 프론트 유의
+- `QuizCard`는 `options.length===2`면 이미 O/X 모드로 렌더 → shape 그대로 동작.
+- **채점은 `submitQuizAnswer` 응답의 `correct`로 하는 게 정답**(현재 client-side `correctOption`
+  비교는 서버가 정답을 안 주므로 항상 index0을 정답 처리 → 오작동). 서버 응답 기반으로 전환 권장.

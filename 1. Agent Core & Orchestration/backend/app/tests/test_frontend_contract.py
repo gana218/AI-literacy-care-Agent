@@ -24,7 +24,9 @@ def test_intervention_command_exposes_quiz_without_answer():
         "quiz_data": {
             "quizId": "quiz_s1_c1",
             "type": "ox",
+            "question": "이 문단은 X-선 파장이 가시광선보다 길다고 설명한다.",
             "statement": "이 문단은 X-선 파장이 가시광선보다 길다고 설명한다.",
+            "options": ["O", "X"],
             "answer": False,
             "explanation": "본문은 '짧다'고 설명합니다.",
             "sourceChunkId": "c1",
@@ -36,8 +38,9 @@ def test_intervention_command_exposes_quiz_without_answer():
     assert cmd["type"] == "quiz"
     quiz = cmd["payload"]["quiz"]
     assert quiz["quizId"] == "quiz_s1_c1"
-    assert quiz["statement"]
-    assert "answer" not in quiz  # 정답은 프론트로 나가면 안 됨
+    assert quiz["question"]  # 프론트 QuizData: 렌더할 진술문
+    assert quiz["options"] == ["O", "X"]  # QuizCard O/X 2버튼 모드
+    assert "answer" not in quiz  # 정답은 프론트로 나가면 안 됨(서버 채점)
     assert "explanation" not in quiz  # 해설도 정답을 노출하므로 채점 응답에서만 준다
 
 

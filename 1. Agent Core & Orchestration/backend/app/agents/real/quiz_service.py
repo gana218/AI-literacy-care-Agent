@@ -42,10 +42,17 @@ def generate_ox_quiz(summary: str, paragraph: str, chunk_id: str, session_id: st
         answer = False
         explanation = "원문의 핵심 서술어/수치 등을 반대로 왜곡한 진술입니다."
 
+    # 프론트(apps/web QuizData)·확장 공용 shape.
+    #   question: QuizCard가 렌더하는 진술문(= statement)
+    #   options: ["O","X"] → QuizCard가 O/X 2버튼 모드로 렌더
+    #   statement: 확장 overlay.quiz 호환(동일 값)
+    #   answer/explanation: 서버 채점용(프론트 payload에선 _public_quiz가 제거)
     return {
         "quizId": quiz_id,
         "type": "ox",
+        "question": statement,
         "statement": statement,
+        "options": ["O", "X"],
         "answer": answer,
         "explanation": explanation,
         "sourceChunkId": chunk_id

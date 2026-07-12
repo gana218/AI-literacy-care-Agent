@@ -49,6 +49,9 @@ def test_prebuild_quizzes_builds_one_ox_per_chunk():
     assert q["type"] == "ox"
     assert isinstance(q["answer"], bool)
     assert q["statement"] and q["sourceChunkId"] == "chunk_01"
+    # 프론트 공용 shape(QuizData): question + options["O","X"]
+    assert q["question"] == q["statement"]
+    assert q["options"] == ["O", "X"]
 
 
 def test_prebuild_skips_too_short_paragraph():
@@ -198,7 +201,9 @@ def test_extension_quiz_appears_and_scores_end_to_end():
     assert cmd["type"] == "quiz"
     quiz = cmd["payload"]["quiz"]
     assert quiz["quizId"]
-    assert "answer" not in quiz  # 정답 미노출
+    assert quiz["question"]  # 프론트 QuizCard가 렌더
+    assert quiz["options"] == ["O", "X"]  # O/X 2버튼 모드
+    assert "answer" not in quiz  # 정답 미노출(서버 채점)
     assert "explanation" not in quiz  # 해설도 미노출(정답 노출 방지)
 
     # 정답 제출 → 채점 응답에 해설 포함

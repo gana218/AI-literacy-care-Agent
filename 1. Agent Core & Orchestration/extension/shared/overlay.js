@@ -77,7 +77,9 @@ window.ALC_Overlay = (() => {
     // O/X 문항 카드. onAnswer(selectedOption:"O"|"X") → Promise<{correct, explanation}>.
     // 답을 고르면 버튼을 잠그고 채점 결과·해설을 보여준 뒤 잠시 후 사라진다.
     function quiz(quizData, onAnswer) {
-      if (!quizData || !quizData.statement) return;
+      // 진술문은 statement(확장 계약) 우선, 없으면 question(프론트 공용 계약).
+      const stmt = quizData && (quizData.statement || quizData.question);
+      if (!stmt) return;
       ensure();
       // 진행 중인 토스트/이전 퀴즈는 치우고 카드만 남긴다(배지는 유지).
       root.querySelectorAll(".toast, .quiz-card").forEach((n) => n.remove());
@@ -86,7 +88,7 @@ window.ALC_Overlay = (() => {
       card.className = "quiz-card";
       card.innerHTML =
         `<span class="tag">${TAGS.quiz}</span>` +
-        `<div class="q-stmt">${esc(quizData.statement)}</div>` +
+        `<div class="q-stmt">${esc(stmt)}</div>` +
         `<div class="q-btns">` +
         `<button class="q-btn q-o" data-opt="O">⭕ 맞다</button>` +
         `<button class="q-btn q-x" data-opt="X">❌ 아니다</button>` +
