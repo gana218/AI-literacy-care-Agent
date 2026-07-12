@@ -12,6 +12,7 @@ class SessionStartRequest(BaseModel):
     userId: str
     articleId: Optional[str] = None
     content: Optional[list[str]] = None
+    rawText: Optional[str] = None
     source: Optional[dict] = None
     baselineScrollSpeed: Optional[BaselineScrollSpeed] = None
 
