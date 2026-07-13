@@ -167,8 +167,10 @@
 
       if (res.ok) {
         const data = await res.json();
-        if (data.definition && data.source !== "not_found") {
-          overlay.dict(text, data.definition, data.source);
+        const definition = data.explanation || data.definition;
+        const source = data.source || "";
+        if (definition && source !== "not_found") {
+          overlay.dict(text, definition, source);
         } else {
           overlay.dict(text, "사전이나 AI 문맥 분석에서 단어의 뜻을 찾을 수 없습니다.", "");
         }
