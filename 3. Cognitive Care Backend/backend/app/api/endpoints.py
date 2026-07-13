@@ -198,6 +198,7 @@ async def process_events(session_id: str, req: EventsRequestModel):
                 "timestamp_ms": data["timestamp_ms"],
                 "position": data.get("position"),
                 "duration_ms": data.get("duration_ms"),
+                "velocity": data.get("velocity"),
                 "metadata": data
             })
 

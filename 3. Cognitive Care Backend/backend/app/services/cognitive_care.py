@@ -77,6 +77,10 @@ def calculate_focus_score(events: List[Dict[str, Any]], baseline: Dict[str, Any]
         etype = event.get("type")
 
         if etype == "blur":
+            # 세션 시작 직후 3초 이내의 blur는 팝업 조작으로 인한 것이므로 무시
+            if event.get("timestamp_ms", 0) < 3000:
+                continue
+                
             duration = event.get("duration_ms")
             if duration is None:
                 if i + 1 < len(recent):
@@ -91,6 +95,9 @@ def calculate_focus_score(events: List[Dict[str, Any]], baseline: Dict[str, Any]
             too_fast_velocity = velocity > scroll_threshold
             if too_fast_velocity:
                 score -= 8.0
+            elif 0.05 < velocity <= scroll_threshold:
+                # 정상적인 속도로 독서하는 경우 점차적으로 집중도 회복
+                score = min(100.0, score + 2.0)
 
         elif etype == "pause":
             score -= 25.0
