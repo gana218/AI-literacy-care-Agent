@@ -58,6 +58,21 @@ window.ALC_Overlay = (() => {
           .quiz-card .q-exp{margin-top:6px;opacity:.85}
           .quiz-card.correct{box-shadow:0 0 0 2px #00b894 inset,0 10px 36px rgba(0,0,0,.3)}
           .quiz-card.wrong{box-shadow:0 0 0 2px #d63031 inset,0 10px 36px rgba(0,0,0,.3)}
+          .dict-card{position:fixed;right:20px;bottom:64px;width:300px;max-width:calc(100vw - 40px);
+            padding:16px;border-radius:16px;background:#1a1a2e;color:#fff;
+            font:14px/1.55 "Pretendard",-apple-system,"Segoe UI",sans-serif;
+            box-shadow:0 10px 36px rgba(0,0,0,.3);z-index:2147483647;
+            opacity:0;transform:translateY(8px);transition:.25s}
+          .dict-card.show{opacity:1;transform:translateY(0)}
+          .dict-card .tag{display:inline-block;font-size:11px;font-weight:700;
+            padding:2px 8px;border-radius:999px;margin-bottom:8px;background:#00b894}
+          .dict-card .d-term{margin:2px 0 6px;font-weight:700;font-size:16px}
+          .dict-card .d-def{font-size:13px;line-height:1.55;opacity:.9}
+          .dict-card .d-src{margin-top:6px;font-size:10px;opacity:.7;text-align:right}
+          .dict-card .d-close{margin-top:12px;text-align:right}
+          .dict-card .d-btn{padding:6px 12px;border:0;border-radius:8px;cursor:pointer;
+            font:600 12px sans-serif;color:#fff;background:#5b6cff;transition:.15s}
+          .dict-card .d-btn:hover{filter:brightness(1.1)}
         </style>`;
       (document.documentElement || document.body).appendChild(host);
     }
@@ -135,13 +150,32 @@ window.ALC_Overlay = (() => {
       root.appendChild(el);
     }
 
+    function dict(term, definition, source) {
+      ensure();
+      root.querySelectorAll(".toast, .quiz-card, .dict-card").forEach((n) => n.remove());
+
+      const card = document.createElement("div");
+      card.className = "dict-card";
+      card.innerHTML =
+        `<span class="tag">단어뜻 찾기</span>` +
+        `<div class="d-term">${esc(term)}</div>` +
+        `<div class="d-def">${esc(definition || "단어의 뜻을 찾을 수 없습니다.")}</div>` +
+        (source ? `<div class="d-src">[출처] ${esc(source)}</div>` : "") +
+        `<div class="d-close"><button class="d-btn">닫기</button></div>`;
+      root.appendChild(card);
+      requestAnimationFrame(() => card.classList.add("show"));
+
+      const closeBtn = card.querySelector(".d-btn");
+      closeBtn.addEventListener("click", () => card.remove());
+    }
+
     function clear() {
       if (host) host.remove();
       host = null;
       root = null;
     }
 
-    return { toast, badge, quiz, clear };
+    return { toast, badge, quiz, dict, clear };
   }
 
   return { create };

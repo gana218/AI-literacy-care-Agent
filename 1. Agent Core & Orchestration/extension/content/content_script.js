@@ -55,6 +55,20 @@
 
   // 설치별 익명 UUID (ADR-002). 없으면 생성해 storage에 보관, 로그인 없음.
   async function getUserId() {
+    // 1. 만약 우리 서비스 도메인에 있으면, 사이트의 로그인 세션 ID(local_session_uid)를 감지하여 연동
+    if (window.location.hostname.includes("vercel.app") || window.location.hostname.includes("localhost") || window.location.hostname.includes("127.0.0.1")) {
+      try {
+        const localUid = localStorage.getItem("local_session_uid");
+        if (localUid) {
+          await chrome.storage.local.set({ userId: localUid });
+          return localUid;
+        }
+      } catch (e) {
+        console.warn("[ALC] localStorage 감지 실패:", e);
+      }
+    }
+
+    // 2. 기존 로직: 저장된 userId가 있으면 반환, 없으면 생성
     const { userId } = await chrome.storage.local.get("userId");
     if (userId) return userId;
     const id =
@@ -106,7 +120,65 @@
     }
   });
 
+  // 드래그(선택) 단어 조회 기능 (ADR-002)
+  document.addEventListener("mouseup", async (e) => {
+    // 오버레이 UI 영역 클릭은 무시
+    if (e.target.closest && (e.target.closest("#alc-overlay-host") || e.target.closest(".alc-debug-root"))) {
+      return;
+    }
+
+    const sel = window.getSelection();
+    const text = sel ? sel.toString().replace(/\s+/g, " ").trim() : "";
+    if (!text || text.length < 1 || text.length > 40) return;
+
+    // 세션이 활성화된 상태에서만 조회 실행
+    if (!session || !session.id) return;
+
+    try {
+      // 1. 선택된 단어 주변의 텍스트 컨텍스트 추출
+      let anchor = sel.anchorNode;
+      let el = anchor && (anchor.nodeType === 3 ? anchor.parentElement : anchor);
+      let context = el ? el.innerText || "" : "";
+      context = context.slice(0, 300);
+
+      // 2. 오버레이 알림 띄운 뒤 백엔드 API 요청
+      overlay.toast("⏳ 단어 뜻을 분석하는 중...", "highlight");
+
+      const res = await fetch(`${CFG.API_BASE}/api/session/${session.id}/explain`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ term: text, context }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        if (data.definition && data.source !== "not_found") {
+          overlay.dict(text, data.definition, data.source);
+        } else {
+          overlay.dict(text, "사전이나 AI 문맥 분석에서 단어의 뜻을 찾을 수 없습니다.", "");
+        }
+      } else {
+        overlay.dict(text, "서버에서 단어 뜻을 가져오지 못했습니다.", "");
+      }
+    } catch (err) {
+      console.warn("[ALC] 단어 조회 실패:", err);
+    }
+  });
+
   async function init() {
+    // 웹사이트인 경우 로그인 상태 항상 동기화
+    if (window.location.hostname.includes("vercel.app") || window.location.hostname.includes("localhost") || window.location.hostname.includes("127.0.0.1")) {
+      try {
+        const localUid = localStorage.getItem("local_session_uid");
+        if (localUid) {
+          await chrome.storage.local.set({ userId: localUid });
+          console.log("[ALC] 웹사이트 사용자 ID 연동 성공:", localUid);
+        }
+      } catch (e) {
+        console.warn("[ALC] 웹사이트 사용자 ID 연동 실패:", e);
+      }
+    }
+
     const { enabled = false } = await chrome.storage.local.get("enabled");
     if (enabled) arm();
 
