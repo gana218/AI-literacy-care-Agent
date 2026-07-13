@@ -76,11 +76,15 @@ const CustomActivityTooltip = ({ active, payload, label }: any) => {
   );
 };
 
+import { useAuthStore } from '../../stores/authStore';
+
 export default function DetailedGrowthReport() {
   const [tab, setTab] = useState<'weekly' | 'monthly'>('weekly');
   const [data, setData] = useState<GrowthReportResponse | null>(null);
   const [loading, setLoading] = useState(true);
-  const userId = useSessionConfig((s) => s.userId);
+  const { user } = useAuthStore();
+  const anonId = useSessionConfig((s) => s.userId);
+  const userId = user?.id || anonId;
 
   useEffect(() => {
     async function fetchData() {

@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { BarChart2, Target, Zap, CheckCircle2, Sparkles, Trophy, Award, Activity } from 'lucide-react';
@@ -11,6 +11,9 @@ import { Card } from '../components/common/Card';
 import { Button } from '../components/common/Button';
 import { useScoreStore } from '../stores/scoreStore';
 import { useReadingStore } from '../stores/readingStore';
+import { useAuthStore } from '../stores/authStore';
+import { useSessionConfig } from '../stores/sessionConfigStore';
+import { api, type GrowthReportResponse } from '../lib/api';
 
 /**
  * DashboardPage — /dashboard
@@ -21,26 +24,70 @@ import { useReadingStore } from '../stores/readingStore';
  */
 export default function DashboardPage() {
   const {
-    literacyScore,
-    engagementScore,
-    comprehensionScore,
-    xp,
-    level,
-    levelProgress,
+    literacyScore: localLiteracy,
+    engagementScore: localEngagement,
+    comprehensionScore: localComprehension,
+    xp: localXp,
+    level: localLevel,
+    levelProgress: localLevelProgress,
     quizResults,
   } = useScoreStore();
   const { progress } = useReadingStore();
+  
+  const { user } = useAuthStore();
+  const anonId = useSessionConfig((s) => s.userId);
+  const userId = user?.id || anonId;
+
+  const [dbData, setDbData] = useState<GrowthReportResponse & {
+    totalXp?: number;
+    level?: number;
+    averageLiteracyScore?: number;
+    averageFocusScore?: number;
+    averageComprehensionScore?: number;
+  } | null>(null);
 
   useEffect(() => {
     document.title = 'AI 리터러시 케어 — 성장 대시보드';
   }, []);
 
+  useEffect(() => {
+    async function loadDbData() {
+      if (!userId) return;
+      try {
+        const res = await api.getGrowthReport(userId);
+        setDbData(res);
+      } catch (err) {
+        console.error('[Dashboard] Failed to load user metrics:', err);
+      }
+    }
+    loadDbData();
+  }, [userId]);
+
+  // DB 연동 값이 있으면 그것을 최우선으로 보여주고, 없거나 0이면 로컬/기본값 폴백
+  const displayLiteracy = dbData?.averageLiteracyScore || localLiteracy;
+  const displayEngagement = dbData?.averageFocusScore || localEngagement;
+  const displayComprehension = dbData?.averageComprehensionScore || localComprehension;
+  const displayXp = dbData?.totalXp !== undefined ? dbData.totalXp : localXp;
+  const displayLevel = dbData?.level !== undefined ? dbData.level : localLevel;
+  
+  // 레벨 바 계산: 누적 XP 기준으로 계산
+  const LEVEL_THRESHOLDS = [0, 100, 250, 500, 1000, 2000];
+  const calcLevelProgress = (xpVal: number) => {
+    for (let i = 1; i < LEVEL_THRESHOLDS.length; i++) {
+      if (xpVal < LEVEL_THRESHOLDS[i]) {
+        const base = LEVEL_THRESHOLDS[i - 1];
+        const next = LEVEL_THRESHOLDS[i];
+        return Math.floor(((xpVal - base) / (next - base)) * 100);
+      }
+    }
+    return 100;
+  };
+  const displayLevelProgress = dbData?.totalXp !== undefined ? calcLevelProgress(dbData.totalXp) : localLevelProgress;
+
   // 퀴즈 정답률
   const quizAccuracy = quizResults.length > 0
     ? Math.round((quizResults.filter((r) => r.correct).length / quizResults.length) * 100)
-    : comprehensionScore; // 퀴즈 미진행 시 comprehension 값 표시
-
-
+    : displayComprehension; // 퀴즈 미진행 시 실시간/DB 값 표시
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 space-y-6">
@@ -66,12 +113,12 @@ export default function DashboardPage() {
 
       {/* ── 요약 지표 카드 — scoreStore 실시간 연결 ── */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <SummaryCard icon={<Target size={20} />} label="리터러시 점수"   value={String(literacyScore)}    unit="점"  color="var(--color-primary)" />
-        <SummaryCard icon={<Zap size={20} />}    label="평균 집중도"     value={String(engagementScore)}  unit="%"   color="var(--color-engagement)" />
+        <SummaryCard icon={<Target size={20} />} label="리터러시 점수"   value={String(displayLiteracy)}    unit="점"  color="var(--color-primary)" />
+        <SummaryCard icon={<Zap size={20} />}    label="평균 집중도"     value={String(displayEngagement)}  unit="%"   color="var(--color-engagement)" />
         <SummaryCard icon={<CheckCircle2 size={20} />} label="퀴즈 정답률" value={String(quizAccuracy)}   unit="%"   color="var(--color-growth)"
           sub={quizResults.length > 0 ? `${quizResults.length}문항 풀이` : '미응시'}
         />
-        <SummaryCard icon={<Sparkles size={20} />} label="누적 경험치"   value={String(xp)}               unit="XP"  color="var(--color-xp)" />
+        <SummaryCard icon={<Sparkles size={20} />} label="누적 경험치"   value={String(displayXp)}               unit="XP"  color="var(--color-xp)" />
       </div>
 
       {/* ── 중단: 차트 + 게이미피케이션 ── */}
@@ -91,12 +138,12 @@ export default function DashboardPage() {
               <span style={{ color: 'var(--color-primary)' }}><Trophy size={16} /></span>
               성장 레벨
             </h3>
-            <LevelBar level={level} percentage={levelProgress} />
+            <LevelBar level={displayLevel} percentage={displayLevelProgress} />
             <div className="flex justify-between items-center">
               <span className="text-xs" style={{ color: 'var(--color-text-secondary)', fontFamily: 'var(--font-sans)' }}>
                 누적 경험치
               </span>
-              <XpCounter xp={xp} />
+              <XpCounter xp={displayXp} />
             </div>
           </Card>
 
@@ -118,7 +165,7 @@ export default function DashboardPage() {
             <div className="space-y-2">
               {[
                 { label: '퀴즈 풀이 수',   value: `${quizResults.length}문항` },
-                { label: '이해도 점수',    value: `${comprehensionScore}점` },
+                { label: '이해도 점수',    value: `${displayComprehension}점` },
                 { label: '진행 구간',      value: `${[25, 50, 75, 90, 100].filter((m) => progress >= m).length}단계` },
                 { label: '퀴즈 정답률',    value: `${quizAccuracy}%` },
               ].map(({ label, value }) => (

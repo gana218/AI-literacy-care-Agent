@@ -201,7 +201,12 @@ async def get_user_growth(user_id: str, db: AsyncSession = Depends(get_db)):
             "activityData": activity_data_weekly,
             "words": words_data,
             "prescription": prescription_html
-        }
+        },
+        "totalXp": total_xp,
+        "level": total_xp // 100 + 1,
+        "averageLiteracyScore": round(after_lit, 1),
+        "averageFocusScore": round(after_eng, 1),
+        "averageComprehensionScore": round(after_comp, 1),
     }
     return report
 
