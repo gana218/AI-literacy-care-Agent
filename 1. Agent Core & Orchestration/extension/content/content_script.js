@@ -213,20 +213,34 @@
         window.location.hostname.includes("127.0.0.1") ||
         (document.title && document.title.includes("AI 리터러시"))
       ) {
+        // 메인 월드(웹페이지 컨텍스트)에서 localStorage 값을 읽기 위해 스크립트 주입
+        window.addEventListener("message", async (event) => {
+          if (event.data && event.data.type === "ALC_SYNC_STATE") {
+            const { uid, backendUrl } = event.data;
+            if (uid) {
+              await chrome.storage.local.set({ userId: uid });
+              console.log("[ALC] 웹사이트 사용자 ID 연동 성공 (postMessage):", uid);
+            }
+            if (backendUrl) {
+              await chrome.storage.local.set({ apiBaseUrl: backendUrl });
+              console.log("[ALC] 웹사이트 백엔드 URL 연동 성공 (postMessage):", backendUrl);
+            }
+          }
+        });
+
         try {
-          const localUid = localStorage.getItem("local_session_uid") || localStorage.getItem("literacy_uid");
-          if (localUid) {
-            await chrome.storage.local.set({ userId: localUid });
-            console.log("[ALC] 웹사이트 사용자 ID 연동 성공:", localUid);
-          }
-          
-          const localBackendUrl = localStorage.getItem("alc_backend_url");
-          if (localBackendUrl) {
-            await chrome.storage.local.set({ apiBaseUrl: localBackendUrl });
-            console.log("[ALC] 웹사이트 백엔드 URL 연동 성공:", localBackendUrl);
-          }
+          const script = document.createElement("script");
+          script.textContent = `
+            (function() {
+              const uid = localStorage.getItem("local_session_uid") || localStorage.getItem("literacy_uid");
+              const backendUrl = localStorage.getItem("alc_backend_url");
+              window.postMessage({ type: "ALC_SYNC_STATE", uid, backendUrl }, "*");
+            })();
+          `;
+          (document.head || document.documentElement).appendChild(script);
+          script.remove();
         } catch (e) {
-          console.warn("[ALC] 웹사이트 상태 연동 실패:", e);
+          console.warn("[ALC] 웹사이트 상태 스크립트 주입 실패:", e);
         }
       }
 
