@@ -51,7 +51,7 @@ export default function ProfilePage() {
         <div className="flex-1">
           {isAuthenticated ? (
             <>
-              <div className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>초기 가입자 ({user?.email})</div>
+              <div className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>초기 가입자 ({user?.email}) | ID: <code className="bg-surface-alt px-1.5 py-0.5 rounded text-xs select-all font-mono" style={{ color: 'var(--color-primary)' }}>{user?.id}</code></div>
               <div className="font-semibold text-lg tabular-nums">{user?.nickname}</div>
             </>
           ) : (

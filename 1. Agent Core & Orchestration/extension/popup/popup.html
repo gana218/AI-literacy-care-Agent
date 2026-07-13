@@ -24,6 +24,15 @@
 
       <button class="pdf-btn" id="openPdf" type="button">📄 내 PDF 열기</button>
 
+      <div style="margin-top: 14px; border-top: 1px solid #cbd2e0; padding-top: 12px;">
+        <div style="font-size: 12px; font-weight: 700; color: #1a1a2e; margin-bottom: 6px;">사용자 ID 수동 연동</div>
+        <div style="display: flex; gap: 6px;">
+          <input type="text" id="userIdInput" placeholder="u_user_..." style="flex: 1; padding: 6px 8px; border: 1px solid #cbd2e0; border-radius: 6px; font-size: 12px;" />
+          <button id="saveIdBtn" style="padding: 6px 10px; background: #5b6cff; color: #fff; border: 0; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer;">저장</button>
+        </div>
+        <div id="syncStatus" style="font-size: 11px; margin-top: 6px; font-weight: 500;"></div>
+      </div>
+
       <div class="status" id="status"></div>
     </div>
     <script src="popup.js"></script>
