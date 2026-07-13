@@ -158,7 +158,11 @@ window.ALC_Session = (() => {
       s.queue = [];
     }
 
-    return { start, stop };
+    return {
+      start,
+      stop,
+      get id() { return s.id; }
+    };
   }
 
   return { create };
