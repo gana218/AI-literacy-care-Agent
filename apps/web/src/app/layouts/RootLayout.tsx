@@ -3,6 +3,7 @@ import { Outlet, NavLink, useLocation } from 'react-router-dom';
 import { useFocusStore } from '../../stores/focusStore';
 import { useReadingStore } from '../../stores/readingStore';
 import { useAuthStore } from '../../stores/authStore';
+import { useSessionConfig } from '../../stores/sessionConfigStore';
 import TutorialModal from '../../components/common/TutorialModal';
 import BottomTabBar from '../../components/common/BottomTabBar';
 
@@ -20,6 +21,22 @@ export default function RootLayout() {
 
   // 7/11: 로컬 인증 상태 및 온보딩 여부 구독
   const { user, isAuthenticated } = useAuthStore();
+  const anonId = useSessionConfig((s) => s.userId);
+  const activeUserId = user?.id || anonId;
+
+  // 확장 프로그램 연동용 DOM 속성 주입 (CSP 차단 및 격리 우회용)
+  useEffect(() => {
+    if (activeUserId) {
+      document.documentElement.setAttribute('data-alc-user-id', activeUserId);
+    } else {
+      document.documentElement.removeAttribute('data-alc-user-id');
+    }
+  }, [activeUserId]);
+
+  useEffect(() => {
+    const backendUrl = import.meta.env.VITE_API_BASE_URL ?? 'http://127.0.0.1:8000';
+    document.documentElement.setAttribute('data-alc-backend-url', backendUrl);
+  }, []);
 
   // 7/11: 리액트 렌더 마운트 시 몽환적인 파스텔 그라데이션(ref-reading) 강제 부여
   useEffect(() => {

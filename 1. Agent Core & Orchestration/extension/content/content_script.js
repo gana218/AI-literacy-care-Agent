@@ -66,13 +66,13 @@
       (document.title && document.title.includes("AI 리터러시"))
     ) {
       try {
-        const localUid = localStorage.getItem("local_session_uid") || localStorage.getItem("literacy_uid");
+        const localUid = document.documentElement.getAttribute("data-alc-user-id");
         if (localUid) {
           await chrome.storage.local.set({ userId: localUid });
           return localUid;
         }
       } catch (e) {
-        console.warn("[ALC] localStorage 감지 실패:", e);
+        console.warn("[ALC] DOM attribute 감지 실패:", e);
       }
     }
 
@@ -213,34 +213,48 @@
         window.location.hostname.includes("127.0.0.1") ||
         (document.title && document.title.includes("AI 리터러시"))
       ) {
-        // 메인 월드(웹페이지 컨텍스트)에서 localStorage 값을 읽기 위해 스크립트 주입
-        window.addEventListener("message", async (event) => {
-          if (event.data && event.data.type === "ALC_SYNC_STATE") {
-            const { uid, backendUrl } = event.data;
-            if (uid) {
-              await chrome.storage.local.set({ userId: uid });
-              console.log("[ALC] 웹사이트 사용자 ID 연동 성공 (postMessage):", uid);
-            }
-            if (backendUrl) {
-              await chrome.storage.local.set({ apiBaseUrl: backendUrl });
-              console.log("[ALC] 웹사이트 백엔드 URL 연동 성공 (postMessage):", backendUrl);
-            }
-          }
-        });
-
+        // 1. 이미 렌더링된 속성이 있다면 즉시 연동
         try {
-          const script = document.createElement("script");
-          script.textContent = `
-            (function() {
-              const uid = localStorage.getItem("local_session_uid") || localStorage.getItem("literacy_uid");
-              const backendUrl = localStorage.getItem("alc_backend_url");
-              window.postMessage({ type: "ALC_SYNC_STATE", uid, backendUrl }, "*");
-            })();
-          `;
-          (document.head || document.documentElement).appendChild(script);
-          script.remove();
+          const localUid = document.documentElement.getAttribute("data-alc-user-id");
+          if (localUid) {
+            await chrome.storage.local.set({ userId: localUid });
+            console.log("[ALC] 웹사이트 사용자 ID 연동 성공 (DOM):", localUid);
+          }
+          const localBackendUrl = document.documentElement.getAttribute("data-alc-backend-url");
+          if (localBackendUrl) {
+            await chrome.storage.local.set({ apiBaseUrl: localBackendUrl });
+            console.log("[ALC] 웹사이트 백엔드 URL 연동 성공 (DOM):", localBackendUrl);
+          }
         } catch (e) {
-          console.warn("[ALC] 웹사이트 상태 스크립트 주입 실패:", e);
+          console.warn("[ALC] 초기 DOM 속성 연동 실패:", e);
+        }
+
+        // 2. 리액트 마운트 후 속성 실시간 변화 감지 (MutationObserver)
+        try {
+          const observer = new MutationObserver(async (mutations) => {
+            for (const mutation of mutations) {
+              if (mutation.type === "attributes") {
+                const name = mutation.attributeName;
+                if (name === "data-alc-user-id") {
+                  const uid = document.documentElement.getAttribute("data-alc-user-id");
+                  if (uid) {
+                    await chrome.storage.local.set({ userId: uid });
+                    console.log("[ALC] 웹사이트 사용자 ID 연동 감지 (DOM):", uid);
+                  }
+                }
+                if (name === "data-alc-backend-url") {
+                  const url = document.documentElement.getAttribute("data-alc-backend-url");
+                  if (url) {
+                    await chrome.storage.local.set({ apiBaseUrl: url });
+                    console.log("[ALC] 웹사이트 백엔드 URL 연동 감지 (DOM):", url);
+                  }
+                }
+              }
+            }
+          });
+          observer.observe(document.documentElement, { attributes: true });
+        } catch (e) {
+          console.warn("[ALC] MutationObserver 감지 등록 실패:", e);
         }
       }
 
