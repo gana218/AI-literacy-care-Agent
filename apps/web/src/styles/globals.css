@@ -123,8 +123,8 @@ html, body, #root {
   background: linear-gradient(135deg, #FDE6E6 0%, #E6E9FE 50%, #DAC4FA 100%) fixed !important;
 }
 
-/* 카드 및 컨테이너에 반투명 페이퍼 글래스 필터 레이어 강제 주입 */
-.rounded-xl, .rounded-lg, .rounded-\[var\(--radius-md\)\], [style*="var(--color-surface)"], [style*="var(--color-surface-alt)"], [style*="var(--bg-paper)"] {
+/* 카드 및 컨테이너에 반투명 페이퍼 글래스 필터 레이어 강제 주입 (버튼 및 링크는 제외) */
+.rounded-xl:not(button):not(a), .rounded-lg:not(button):not(a), .rounded-\[var\(--radius-md\)\]:not(button):not(a), [style*="var(--color-surface)"]:not(button):not(a), [style*="var(--color-surface-alt)"]:not(button):not(a), [style*="var(--bg-paper)"]:not(button):not(a) {
   background-color: rgba(253, 252, 249, 0.6) !important;
   backdrop-filter: blur(16px) saturate(140%) !important;
   border-color: rgba(220, 210, 195, 0.6) !important;
