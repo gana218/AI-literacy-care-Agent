@@ -49,30 +49,35 @@ chrome.storage.onChanged.addListener((changes, area) => {
   setPdfRedirect(!!changes.enabled.newValue);
 });
 
-// 백엔드 API 요청 프록시 (CORS / CSP 차단 우회용)
+// 백엔드 API 요청 프록시 (CORS / CSP 차단 우회용 + 자동 재시도)
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === "ALC_API_REQUEST") {
     const { url, options } = message;
-    try {
-      fetch(url, options)
-        .then(async (res) => {
-          const ok = res.ok;
-          const status = res.status;
-          const statusText = res.statusText;
-          let data = null;
-          try {
-            data = await res.json();
-          } catch (_) {}
-          sendResponse({ success: true, ok, status, statusText, data });
-        })
-        .catch((err) => {
-          console.error("[ALC Background] Promise fetch failed:", err);
+    
+    // 최대 3회 재시도 (Render 콜드 스타트 및 일시적 오류 대응)
+    const executeFetchWithRetry = async (retriesLeft, delay) => {
+      try {
+        const res = await fetch(url, options);
+        const ok = res.ok;
+        const status = res.status;
+        const statusText = res.statusText;
+        let data = null;
+        try {
+          data = await res.json();
+        } catch (_) {}
+        sendResponse({ success: true, ok, status, statusText, data });
+      } catch (err) {
+        if (retriesLeft > 0) {
+          console.warn(`[ALC Background] Fetch failed, retrying in ${delay}ms... (${retriesLeft} retries left):`, err);
+          setTimeout(() => executeFetchWithRetry(retriesLeft - 1, delay * 2), delay);
+        } else {
+          console.error("[ALC Background] Promise fetch failed after all retries:", err);
           sendResponse({ success: false, error: err.toString() });
-        });
-    } catch (err) {
-      console.error("[ALC Background] Sync fetch failed:", err);
-      sendResponse({ success: false, error: err.toString() });
-    }
+        }
+      }
+    };
+
+    executeFetchWithRetry(3, 1000); // 3회 재시도, 최초 대기 1초
     return true; // 비동기 응답 채널 유지
   }
 });
