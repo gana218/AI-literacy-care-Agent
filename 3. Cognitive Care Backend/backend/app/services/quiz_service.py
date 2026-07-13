@@ -20,26 +20,27 @@ def generate_ox_quiz(summary: str, paragraph: str, chunk_id: str, session_id: st
     # [요약] 프리픽스가 있다면 제거
     summary_clean = summary.replace("[요약]", "").strip()
     
+    # 3.4% 같은 소수점 숫자가 잘리는 현상을 방지하기 위해 공백이 뒤따르는 마침표/느낌표/물음표만 기준으로 문장 분리
+    sentences = [s.strip() for s in re.split(r'(?<=[.!?])\s+', summary_clean) if s.strip()]
+    statement = sentences[0] if sentences else summary_clean
+    
     if is_even:
-        sentences = re.split(r'(?<=[.!?])\s+|\.\s*', summary_clean)
-        statement = sentences[0] if sentences else summary_clean
         if not statement: statement = "본문의 핵심 요약 내용과 일치합니다."
         answer = True
         explanation = "원문의 내용 및 요약과 일치하는 올바른 진술입니다."
     else:
         # M5: 의미 없는 고정 진술문 대신 summary를 반전하는 문장 생성
-        sentences = re.split(r'(?<=[.!?])\s+|\.\s*', summary_clean)
-        statement = sentences[0] if sentences else summary_clean
         if not statement: 
             statement = "이 문단의 설명과 일치하지 않습니다."
         else:
-            # 아주 간단한 반전 (서술어 변경)
-            if statement.endswith("다."):
-                statement = statement[:-2] + "지 않는다."
-            elif statement.endswith("다"):
-                statement = statement[:-1] + "지 않는다."
+            # 문장 끝 마침표 제거
+            if statement.endswith("."):
+                statement_no_dot = statement[:-1]
             else:
-                statement = statement + " (사실과 다름)"
+                statement_no_dot = statement
+                
+            # 부드럽고 자연스러운 사실 무효화 문장 결합
+            statement = statement_no_dot + "라는 내용은 사실과 다릅니다."
         answer = False
         explanation = "원문의 내용과 다른 진술입니다."
 

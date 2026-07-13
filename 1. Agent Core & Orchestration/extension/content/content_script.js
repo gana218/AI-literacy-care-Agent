@@ -66,7 +66,7 @@
       (document.title && document.title.includes("AI 리터러시"))
     ) {
       try {
-        const localUid = localStorage.getItem("local_session_uid");
+        const localUid = localStorage.getItem("local_session_uid") || localStorage.getItem("literacy_uid");
         if (localUid) {
           await chrome.storage.local.set({ userId: localUid });
           return localUid;
@@ -214,7 +214,7 @@
         (document.title && document.title.includes("AI 리터러시"))
       ) {
         try {
-          const localUid = localStorage.getItem("local_session_uid");
+          const localUid = localStorage.getItem("local_session_uid") || localStorage.getItem("literacy_uid");
           if (localUid) {
             await chrome.storage.local.set({ userId: localUid });
             console.log("[ALC] 웹사이트 사용자 ID 연동 성공:", localUid);
