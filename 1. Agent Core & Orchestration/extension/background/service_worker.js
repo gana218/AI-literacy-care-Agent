@@ -1,7 +1,7 @@
 // MV3 service worker — 상태 기본값 + PDF 링크 가로채기(declarativeNetRequest).
 // (실제 측정·개입은 content script(웹)와 pdf/viewer.js(PDF)가 페이지에서 수행한다.)
 
-const DEFAULT_STATE = { enabled: false };
+const DEFAULT_STATE = { enabled: true };
 const PDF_RULE_ID = 1;
 
 // enabled일 때만 PDF 링크(main_frame)를 우리 pdf.js 뷰어로 리다이렉트한다.
