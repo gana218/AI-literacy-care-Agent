@@ -64,6 +64,9 @@ class QuizSubmitResponse(BaseModel):
 # --- Term Explain (7/6) ---
 class TermExplainRequest(BaseModel):
     term: str
+    context: Optional[str] = None
 
 class TermExplainResponse(BaseModel):
     explanation: str
+    definition: Optional[str] = None
+    source: Optional[str] = None

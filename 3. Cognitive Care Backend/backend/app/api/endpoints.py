@@ -581,30 +581,29 @@ async def explain_term(
     req: TermExplainRequest,
     db: AsyncSession = Depends(get_db),
 ):
-    """용어 설명 API - RAG 스텁 (7/5 구현). 2번 Content Reducer 연동용."""
+    """용어 설명 API - 실시간 RAG 엔진(우리말샘 API + LLM 유추) 연동 완료."""
     # 세션 존재 확인
     result = await db.execute(select(ReadingSession).filter(ReadingSession.id == session_id))
     session = result.scalars().first()
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
     
-    # RAG 스텁: 시나리오용 고정 용어 사전
-    term_dict = {
-        "리터러시": "리터러시(Literacy)는 글을 읽고 이해하며 활용하는 능력을 뜻합니다. 디지털 시대에는 정보를 비판적으로 분석하는 능력까지 포함합니다.",
-        "LLM": "LLM(Large Language Model)은 대규모 텍스트 데이터로 학습된 인공지능 언어 모델입니다. GPT, Claude 등이 대표적인 예시입니다.",
-        "환각": "AI 환각(Hallucination)은 AI 모델이 사실이 아닌 정보를 마치 사실인 것처럼 생성하는 현상을 말합니다.",
-        "편향": "편향(Bias)은 데이터나 알고리즘에 내재된 불공정한 경향성을 의미합니다. AI 시스템의 공정성에 큰 영향을 미칩니다.",
-        "윤리": "AI 윤리는 인공지능 기술의 개발과 활용 과정에서 지켜야 할 도덕적 원칙과 가이드라인을 말합니다.",
-        "Literacy Score": "Literacy Score는 사용자의 읽기 이해도, 집중도, 난이도 보정을 종합한 0~100 사이의 문해력 점수입니다.",
-    }
-    
     term = req.term.strip()
-    explanation = term_dict.get(
-        term,
-        f"'{term}'은(는) 이 글에서 중요한 개념입니다. AI가 맥락을 분석하여 쉬운 설명을 제공합니다. (RAG 연동 예정)"
-    )
     
-    return TermExplainResponse(explanation=explanation)
+    from ..agents.content_reducer.rag_engine import lookup_term
+    try:
+        t = lookup_term(term, req.context)
+        explanation = t["definition"]
+        source = t["source"]
+    except Exception as e:
+        explanation = f"'{term}'에 대한 사전 뜻을 찾을 수 없습니다. ({str(e)})"
+        source = "Local Fallback"
+
+    return TermExplainResponse(
+        explanation=explanation,
+        definition=explanation,
+        source=source
+    )
 
 @router.post("/reset")
 async def reset_demo_data(db: AsyncSession = Depends(get_db)):
