@@ -129,9 +129,7 @@ export default function TutorialModal() {
                 스스로 생각하고 독독(讀讀)하는 문해력 페이스메이커
               </h2>
               <p className="text-sm leading-relaxed" style={{ color: 'var(--color-text-secondary)' }}>
-                AllDayHappyDay는 AI가 글을 대신 요약하게 두지 않습니다. 
-                사용자가 긴 글을 정독할 수 있도록 읽기 행동 패턴을 실시간 측정하고, 인지 저하가 감지되는 순간 
-                필요한 개입(넛지 및 퀴즈)을 얹어주어 **스스로 읽고 이해하는 인지 뇌 근육**을 단단하게 지켜줍니다.
+                AI가 글을 대신 요약하게 두지 않습니다. 사용자가 긴 글을 정독할 수 있도록 읽기 행동 패턴을 실시간 측정하고, 인지 저하가 감지되는 순간 필요한 개입(넛지 및 퀴즈)을 얹어주어 스스로 읽고 이해하는 인지 뇌 근육을 키워줍니다.
               </p>
               {/* Placeholder 그래픽 */}
               <div className="rounded-xl border p-6 mt-4 flex items-center justify-center" style={{ backgroundColor: 'var(--color-surface-alt)', borderColor: 'var(--color-border)', height: '140px' }}>
