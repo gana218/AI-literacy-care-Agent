@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, JSON, Boolean, Text
+from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, JSON, Boolean, Text, BigInteger
 from sqlalchemy.sql import func
 from ..core.db import Base
 
@@ -34,7 +34,7 @@ class ReadingEvent(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     session_id = Column(String, ForeignKey("reading_sessions.id"))
     event_type = Column(String)
-    timestamp_ms = Column(Integer)
+    timestamp_ms = Column(BigInteger)
     metadata_json = Column(JSON, nullable=True)
 
 
