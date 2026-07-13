@@ -2,6 +2,18 @@ from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, Asyn
 from sqlalchemy.orm import declarative_base
 from sqlalchemy import text
 import os
+import subprocess
+import sys
+
+try:
+    import aiosqlite
+except ImportError:
+    print("[DB] aiosqlite not found. Installing dynamically...")
+    try:
+        subprocess.check_call([sys.executable, "-m", "pip", "install", "aiosqlite"])
+        print("[DB] aiosqlite installed successfully.")
+    except Exception as e:
+        print(f"[DB] Dynamic install of aiosqlite failed: {e}")
 
 # PostgreSQL URL
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql+psycopg://admin:password@localhost:5432/literacy_care")
