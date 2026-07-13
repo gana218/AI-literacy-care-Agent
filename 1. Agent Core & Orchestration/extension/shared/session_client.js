@@ -18,6 +18,9 @@ window.ALC_Session = (() => {
       const doc = extract();
       let data;
       try {
+        // 서버 연결 시작 알림 (Render 무료 서버의 30초 대기 시간 대응)
+        overlay.toast("⏳ AI 케어 서버에 연결하는 중...", "highlight");
+
         const res = await fetch(`${cfg.API_BASE}/api/session/start`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -31,6 +34,7 @@ window.ALC_Session = (() => {
         data = await res.json();
       } catch (e) {
         console.warn("[ALC] 세션 시작 실패 (백엔드 미가동?):", e);
+        overlay.toast("❌ AI 케어 서버 연결에 실패했습니다. 대시보드를 켜두었는지 확인해 주세요.", "nudge");
         s.started = false;
         return;
       }
