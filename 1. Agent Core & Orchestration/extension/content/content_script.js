@@ -88,43 +88,60 @@
   }
 
   async function arm() {
-    if (session || !isReadable()) return;
-    const userId = await getUserId();
-
-    // storage에서 백엔드 URL 읽어서 CFG에 동적 반영 (사용자 지정 Render 서버 대응)
     try {
-      const { apiBaseUrl } = await chrome.storage.local.get("apiBaseUrl");
-      if (apiBaseUrl) {
-        CFG.API_BASE = apiBaseUrl;
-        console.log("[ALC] 동적 백엔드 URL 적용:", CFG.API_BASE);
-      }
-    } catch (e) {
-      console.warn("[ALC] 동적 백엔드 URL 로드 실패:", e);
-    }
+      console.log("[ALC] arm() 실행됨. session 존재여부:", !!session);
+      if (session || !isReadable()) return;
+      const userId = await getUserId();
+      console.log("[ALC] arm() - 사용자 ID:", userId);
 
-    armTimer = setTimeout(() => {
-      session = window.ALC_Session.create({
-        cfg: CFG,
-        userId,
-        extract,
-        getProgress,
-        getReadChunkIndex,
-        overlay,
-        scrollTarget: window,
-      });
-      session.start();
-    }, CFG.START_DWELL_MS);
+      // storage에서 백엔드 URL 읽어서 CFG에 동적 반영 (사용자 지정 Render 서버 대응)
+      try {
+        const { apiBaseUrl } = await chrome.storage.local.get("apiBaseUrl");
+        if (apiBaseUrl) {
+          CFG.API_BASE = apiBaseUrl;
+          console.log("[ALC] 동적 백엔드 URL 적용:", CFG.API_BASE);
+        }
+      } catch (e) {
+        console.warn("[ALC] 동적 백엔드 URL 로드 실패:", e);
+      }
+
+      console.log("[ALC] armTimer 설정 대기시간(ms):", CFG.START_DWELL_MS);
+      armTimer = setTimeout(() => {
+        try {
+          console.log("[ALC] 세션 객체 생성 시도...");
+          session = window.ALC_Session.create({
+            cfg: CFG,
+            userId,
+            extract,
+            getProgress,
+            getReadChunkIndex,
+            overlay,
+            scrollTarget: window,
+          });
+          console.log("[ALC] 세션 시작(start) 시도...");
+          session.start();
+        } catch (err) {
+          alert("ALC armTimer Error: " + err.stack);
+        }
+      }, CFG.START_DWELL_MS);
+    } catch (err) {
+      alert("ALC arm Error: " + err.stack);
+    }
   }
 
   function disarm() {
-    if (armTimer) clearTimeout(armTimer);
-    armTimer = null;
-    if (session) {
-      session.stop();
-      session = null;
+    try {
+      if (armTimer) clearTimeout(armTimer);
+      armTimer = null;
+      if (session) {
+        session.stop();
+        session = null;
+      }
+      progress.detach();
+      articleEls = [];
+    } catch (err) {
+      alert("ALC disarm Error: " + err.stack);
     }
-    progress.detach();
-    articleEls = [];
   }
 
   window.addEventListener("pagehide", () => {
@@ -188,33 +205,44 @@
   });
 
   async function init() {
-    // 웹사이트인 경우 로그인 상태 및 백엔드 서버 주소 항상 동기화
-    if (window.location.hostname.includes("vercel.app") || window.location.hostname.includes("localhost") || window.location.hostname.includes("127.0.0.1")) {
-      try {
-        const localUid = localStorage.getItem("local_session_uid");
-        if (localUid) {
-          await chrome.storage.local.set({ userId: localUid });
-          console.log("[ALC] 웹사이트 사용자 ID 연동 성공:", localUid);
+    try {
+      // 웹사이트인 경우 로그인 상태 및 백엔드 서버 주소 항상 동기화
+      if (
+        window.location.hostname.includes("vercel.app") || 
+        window.location.hostname.includes("localhost") || 
+        window.location.hostname.includes("127.0.0.1") ||
+        (document.title && document.title.includes("AI 리터러시"))
+      ) {
+        try {
+          const localUid = localStorage.getItem("local_session_uid");
+          if (localUid) {
+            await chrome.storage.local.set({ userId: localUid });
+            console.log("[ALC] 웹사이트 사용자 ID 연동 성공:", localUid);
+          }
+          
+          const localBackendUrl = localStorage.getItem("alc_backend_url");
+          if (localBackendUrl) {
+            await chrome.storage.local.set({ apiBaseUrl: localBackendUrl });
+            console.log("[ALC] 웹사이트 백엔드 URL 연동 성공:", localBackendUrl);
+          }
+        } catch (e) {
+          console.warn("[ALC] 웹사이트 상태 연동 실패:", e);
         }
-        
-        const localBackendUrl = localStorage.getItem("alc_backend_url");
-        if (localBackendUrl) {
-          await chrome.storage.local.set({ apiBaseUrl: localBackendUrl });
-          console.log("[ALC] 웹사이트 백엔드 URL 연동 성공:", localBackendUrl);
-        }
-      } catch (e) {
-        console.warn("[ALC] 웹사이트 상태 연동 실패:", e);
       }
+
+      const { enabled = false } = await chrome.storage.local.get("enabled");
+      console.log("[ALC] 초기화 enabled 상태:", enabled);
+      if (enabled) arm();
+
+      chrome.storage.onChanged.addListener((changes, area) => {
+        if (area !== "local" || !changes.enabled) return;
+        console.log("[ALC] 설정 변경 감지. enabled:", changes.enabled.newValue);
+        if (changes.enabled.newValue) arm();
+        else disarm();
+      });
+    } catch (err) {
+      alert("ALC Init Error: " + err.stack);
     }
-
-    const { enabled = false } = await chrome.storage.local.get("enabled");
-    if (enabled) arm();
-
-    chrome.storage.onChanged.addListener((changes, area) => {
-      if (area !== "local" || !changes.enabled) return;
-      if (changes.enabled.newValue) arm();
-      else disarm();
-    });
   }
 
   init();
