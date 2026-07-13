@@ -543,6 +543,8 @@ async def get_session_result(session_id: str, db: AsyncSession = Depends(get_db)
         # 이번 세션에서 "정상 읽기"로 스크롤한 속도(스키밍/0 제외)의 중앙값을 관측치로,
         # 이 글 난이도에 가까운 캘리브레이션 점(easy/hard)을 EWMA로 당긴다 → 읽을수록 정교.
         try:
+            user_result = await db.execute(select(User).filter(User.id == session.user_id))
+            user = user_result.scalars().first()
             _update_user_scroll_baseline(user, state_events, initial_state.get("difficulty_score", 50.0))
         except Exception as _bl_err:
             logging_import = __import__("logging"); logging_import.warning(f"baseline update skip: {_bl_err}")
