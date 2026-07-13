@@ -73,8 +73,13 @@ async def get_redis():
         return _redis_client
 
     try:
-        # 1. 실제 Redis 클라이언트 연결 시도
-        raw_client = redis.from_url(REDIS_URL, decode_responses=True)
+        # 1. 실제 Redis 클라이언트 연결 시도 (Render 무료/저가형 커넥션 한도 초과 방지)
+        raw_client = redis.from_url(
+            REDIS_URL, 
+            decode_responses=True, 
+            max_connections=5, 
+            health_check_interval=10
+        )
         await raw_client.ping()  # ping 테스트
         _redis_client = raw_client
         print("[Redis] Local Redis server connection successful.")
