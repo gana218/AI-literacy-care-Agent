@@ -164,10 +164,10 @@ export default function DashboardPage() {
             </h3>
             <div className="space-y-2">
               {[
-                { label: '퀴즈 풀이 수',   value: `${quizResults.length}문항` },
-                { label: '이해도 점수',    value: `${displayComprehension}점` },
-                { label: '진행 구간',      value: `${[25, 50, 75, 90, 100].filter((m) => progress >= m).length}단계` },
-                { label: '퀴즈 정답률',    value: `${quizAccuracy}%` },
+                { label: '퀴즈 풀이 수',   value: `${dbData?.latestSessionSummary ? dbData.latestSessionSummary.quiz_count : quizResults.length}문항` },
+                { label: '이해도 점수',    value: `${dbData?.latestSessionSummary ? dbData.latestSessionSummary.comprehension_score : displayComprehension}점` },
+                { label: '진행 구간',      value: `${[25, 50, 75, 90, 100].filter((m) => (dbData?.latestSessionSummary ? dbData.latestSessionSummary.progress : progress) >= m).length}단계` },
+                { label: '퀴즈 정답률',    value: `${dbData?.latestSessionSummary ? dbData.latestSessionSummary.quiz_accuracy : quizAccuracy}%` },
               ].map(({ label, value }) => (
                 <div key={label} className="flex justify-between text-xs">
                   <span style={{ color: 'var(--color-text-secondary)', fontFamily: 'var(--font-sans)' }}>{label}</span>

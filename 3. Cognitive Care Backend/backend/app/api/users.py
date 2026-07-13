@@ -57,8 +57,25 @@ async def get_user_growth(user_id: str, db: AsyncSession = Depends(get_db)):
     if not sessions:
         return generate_empty_growth_report()
 
+    redis_client = await get_redis()
+    
+    # 1. 독해 시간 동적 산출 (활성 세션의 경우 Redis의 실시간 이벤트 간 시간 차이로 계산)
     total_xp = sum((s.xp_earned or 0) for s in sessions)
-    total_duration = sum((s.duration_seconds or 0) for s in sessions)
+    total_duration = 0
+    for s in sessions:
+        if s.duration_seconds:
+            total_duration += s.duration_seconds
+        else:
+            try:
+                redis_key = f"session:{s.id}:events"
+                all_events_raw = await redis_client.lrange(redis_key, 0, -1)
+                if all_events_raw:
+                    events = [json.loads(raw) for raw in all_events_raw]
+                    start_ts = events[0].get("timestamp_ms", 0)
+                    end_ts = events[-1].get("timestamp_ms", start_ts)
+                    total_duration += max(0, int((end_ts - start_ts) / 1000.0))
+            except Exception:
+                pass
     total_duration_mins = total_duration // 60
 
     # M2: 요일별 실제 데이터 집계 (요일 순으로 정렬)
@@ -69,7 +86,22 @@ async def get_user_growth(user_id: str, db: AsyncSession = Depends(get_db)):
         if s.created_at:
             day_idx = s.created_at.weekday()  # 월요일=0, 일요일=6
             day_name = weekday_names[day_idx]
-            weekly_activity[day_name]["time"] += (s.duration_seconds or 0) // 60
+            
+            # 요일별 독해 시간도 활성 세션 보정치 사용
+            duration_sec = s.duration_seconds
+            if not duration_sec:
+                try:
+                    redis_key = f"session:{s.id}:events"
+                    all_events_raw = await redis_client.lrange(redis_key, 0, -1)
+                    if all_events_raw:
+                        events = [json.loads(raw) for raw in all_events_raw]
+                        start_ts = events[0].get("timestamp_ms", 0)
+                        end_ts = events[-1].get("timestamp_ms", start_ts)
+                        duration_sec = max(0, int((end_ts - start_ts) / 1000.0))
+                except Exception:
+                    pass
+            
+            weekly_activity[day_name]["time"] += (duration_sec or 0) // 60
             weekly_activity[day_name]["xp"] += (s.xp_earned or 0)
             
     activity_data_weekly = [
@@ -92,7 +124,6 @@ async def get_user_growth(user_id: str, db: AsyncSession = Depends(get_db)):
     after_lit = sum((s.literacy_score or 50.0) for s in sessions) / len(sessions)
 
     # 문해 5대 지표(v2): 저장된 literacy_domains 실측 평균. before=첫 세션, after=전체 평균.
-    # (어휘력/추론능력 등 가짜 +offset 매핑 폐기 → 우리가 실제 측정하는 신호로 정직하게 파생)
     DOMAIN_LABELS = [
         ("comprehension", "이해도"),
         ("focus", "집중 유지"),
@@ -114,33 +145,53 @@ async def get_user_growth(user_id: str, db: AsyncSession = Depends(get_db)):
             after = before = 0.0
         radar_data.append({"subject": label, "before": before, "after": after})
 
-    # M6: 어휘 보드 실데이터 연동 (가장 최근 세션의 cached chunks에서 어휘 추출)
-    latest_session = sorted_sessions[-1]
+    # M6: 어휘 보드 실데이터 연동 (사용자가 실제로 explain으로 조회한 단어들)
     words_data = []
+    seen_words = set()
     
-    redis_client = await get_redis()
+    # DB 및 Redis에서 실제로 찾아본 용어들 조회
     try:
-        chunks_raw = await redis_client.get(f"session:{latest_session.id}:chunks")
-        if chunks_raw:
-            chunks = json.loads(chunks_raw)
-            seen_words = set()
-            for c in chunks:
-                for t in c.get("terms", []):
-                    word = t.get("term")
-                    if word and word not in seen_words:
-                        seen_words.add(word)
-                        words_data.append({
-                            "word": word,
-                            "meaning": t.get("definition", "어휘 설명이 없습니다."),
-                            "level": "상" if len(word) > 3 else "중",
-                            "status": "review"
-                        })
-    except Exception as e:
-        print(f"Failed to fetch real vocab terms from Redis: {e}")
-    finally:
-        await redis_client.aclose()
+        session_ids = [s.id for s in sessions]
+        if session_ids:
+            # 1. DB의 ReadingEvent lookup 이벤트들 조회
+            lookup_events_result = await db.execute(
+                select(ReadingEvent).filter(
+                    ReadingEvent.session_id.in_(session_ids),
+                    ReadingEvent.event_type == "lookup"
+                ).order_by(ReadingEvent.id.desc())
+            )
+            lookup_events = lookup_events_result.scalars().all()
+            for ev in lookup_events:
+                meta = ev.metadata_json or {}
+                word = meta.get("term") or meta.get("word")
+                if word and word not in seen_words:
+                    seen_words.add(word)
+                    words_data.append({
+                        "word": word,
+                        "meaning": meta.get("definition") or meta.get("meaning") or "어휘 설명이 없습니다.",
+                        "level": "상" if len(word) > 3 else "중",
+                        "status": "review"
+                    })
         
-    # 만약 Redis 캐시에 어휘가 없다면 기존 하드코딩 데이터로 깔끔하게 폴백
+        # 2. 가장 최근 세션이 활성화 상태인 경우 Redis 버퍼에서 실시간 lookup 이벤트 추가 조회
+        latest_session = sorted_sessions[-1]
+        active_events_raw = await redis_client.lrange(f"session:{latest_session.id}:events", 0, -1)
+        for raw in active_events_raw:
+            evt = json.loads(raw)
+            if evt.get("type") == "lookup":
+                word = evt.get("term")
+                if word and word not in seen_words:
+                    seen_words.add(word)
+                    words_data.append({
+                        "word": word,
+                        "meaning": evt.get("definition") or "어휘 설명이 없습니다.",
+                        "level": "상" if len(word) > 3 else "중",
+                        "status": "review"
+                    })
+    except Exception as e:
+        print(f"Failed to fetch real lookup terms: {e}")
+        
+    # 만약 실제로 찾아본 어휘가 없다면 기존 하드코딩 데이터로 깔끔하게 폴백
     if not words_data:
         words_data = [
             {"word": '인공지능전환 (AX)', "meaning": 'AI 기술을 도입해 기존의 비즈니스 구조를 근본적으로 바꾸는 과정.', "level": '상', "status": 'completed'},
@@ -148,6 +199,57 @@ async def get_user_growth(user_id: str, db: AsyncSession = Depends(get_db)):
         ]
     else:
         words_data = words_data[:4]  # 최대 4개 제한
+
+    # 최근 활성/완료 세션 요약 지표 빌드
+    latest_session_summary = {
+        "quiz_count": 0,
+        "comprehension_score": 50,
+        "progress": 0,
+        "quiz_accuracy": 50
+    }
+    if sessions:
+        try:
+            latest_session = sorted_sessions[-1]
+            
+            # 1. 퀴즈 제출 개수 및 정답률 집계
+            quiz_results_result = await db.execute(
+                select(QuizResult).filter(QuizResult.session_id == latest_session.id)
+            )
+            q_res = quiz_results_result.scalars().all()
+            q_count = len(q_res)
+            correct_q_count = sum(1 for qr in q_res if qr.is_correct)
+            q_acc = int((correct_q_count / q_count * 100)) if q_count > 0 else 50
+            
+            # 2. 진행률 집계 (Redis 또는 DB 이벤트)
+            progress_val = 0
+            redis_key = f"session:{latest_session.id}:events"
+            all_events_raw = await redis_client.lrange(redis_key, 0, -1)
+            
+            events_list = []
+            if all_events_raw:
+                events_list = [json.loads(raw) for raw in all_events_raw]
+            else:
+                db_evs = await db.execute(select(ReadingEvent).filter(ReadingEvent.session_id == latest_session.id))
+                events_list = [ev.metadata_json for ev in db_evs.scalars().all() if ev.metadata_json]
+                
+            progress_events = [e for e in events_list if e.get("type") == "progress"]
+            if progress_events:
+                progress_val = progress_events[-1].get("progress", 0)
+            else:
+                read_indices = {e.get("chunk_idx") for e in events_list if e.get("type") == "read" and e.get("chunk_idx") is not None}
+                chunks_raw = await redis_client.get(f"session:{latest_session.id}:chunks")
+                chunks_len = len(json.loads(chunks_raw)) if chunks_raw else 1
+                if read_indices and chunks_len:
+                    progress_val = int((len(read_indices) / chunks_len) * 100)
+                    
+            latest_session_summary = {
+                "quiz_count": q_count,
+                "comprehension_score": int(latest_session.comprehension_score or 50),
+                "progress": min(100, progress_val),
+                "quiz_accuracy": q_acc
+            }
+        except Exception as _sum_err:
+            print(f"Failed to compile latest session summary: {_sum_err}")
 
     # Generate Prescription via LLM
     prescription_html = [
@@ -189,6 +291,8 @@ async def get_user_growth(user_id: str, db: AsyncSession = Depends(get_db)):
         except Exception as e:
             print(f"LLM call failed: {e}")
 
+    await redis_client.aclose()
+
     report = {
         "weekly": {
             "radarData": radar_data,
@@ -207,6 +311,7 @@ async def get_user_growth(user_id: str, db: AsyncSession = Depends(get_db)):
         "averageLiteracyScore": round(after_lit, 1),
         "averageFocusScore": round(after_eng, 1),
         "averageComprehensionScore": round(after_comp, 1),
+        "latestSessionSummary": latest_session_summary
     }
     return report
 

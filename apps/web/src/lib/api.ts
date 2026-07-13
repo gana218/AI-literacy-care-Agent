@@ -162,6 +162,12 @@ export interface GrowthReportResponse {
     words: { word: string; meaning: string; level: '상' | '중' | '하'; status: 'completed' | 'review' }[];
     prescription: string[];
   };
+  latestSessionSummary?: {
+    quiz_count: number;
+    comprehension_score: number;
+    progress: number;
+    quiz_accuracy: number;
+  };
 }
 
 // ──────────────────────────────────────────────

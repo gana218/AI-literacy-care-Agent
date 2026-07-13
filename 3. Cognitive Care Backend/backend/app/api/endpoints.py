@@ -324,7 +324,7 @@ async def process_events(session_id: str, req: EventsRequestModel):
         raise
 
 @router.post("/{session_id}/quiz/submit", response_model=QuizSubmitResponse)
-async def submit_quiz(session_id: str, req: QuizSubmitRequest):
+async def submit_quiz(session_id: str, req: QuizSubmitRequest, db: AsyncSession = Depends(get_db)):
     """O/X 답안 서버 채점 + 이해도 누적. role-1 canonical과 정렬.
 
     정답키(answer)는 서버 캐시에만 있고 프론트로 나가지 않으므로(위조 불가),
@@ -355,6 +355,25 @@ async def submit_quiz(session_id: str, req: QuizSubmitRequest):
         existing["correct_count"] += 1
     existing["answers"].append({"quiz_id": req.quizId, "selected": req.selectedOption, "correct": is_correct})
     await redis_client.set(quiz_key, json.dumps(existing), ex=86400)
+
+    # 6/25: 퀴즈 제출 결과 DB 테이블 기록 추가
+    try:
+        question_text = target_quiz.get("question") or target_quiz.get("statement") or ""
+        correct_opt = "O" if target_quiz["answer"] else "X"
+        new_result = QuizResult(
+            session_id=session_id,
+            quiz_id=req.quizId,
+            question=question_text,
+            selected_option=req.selectedOption,
+            correct_option=correct_opt,
+            is_correct=is_correct
+        )
+        db.add(new_result)
+        await db.commit()
+    except Exception as _db_err:
+        await db.rollback()
+        import logging
+        logging.warning(f"Failed to save QuizResult row: {_db_err}")
 
     return QuizSubmitResponse(
         correct=is_correct,
@@ -598,6 +617,21 @@ async def explain_term(
     except Exception as e:
         explanation = f"'{term}'에 대한 사전 뜻을 찾을 수 없습니다. ({str(e)})"
         source = "Local Fallback"
+
+    # 실시간 단어장 연동을 위해 lookup 이벤트 캐시에 기록 (세션 종료 시 DB 저장)
+    try:
+        import time
+        redis_client = await get_redis()
+        lookup_ev = {
+            "type": "lookup",
+            "timestamp_ms": int(time.time() * 1000),
+            "term": term,
+            "definition": explanation,
+            "source": source
+        }
+        await redis_client.rpush(f"session:{session_id}:events", json.dumps(lookup_ev))
+    except Exception as _ev_err:
+        pass
 
     return TermExplainResponse(
         explanation=explanation,
