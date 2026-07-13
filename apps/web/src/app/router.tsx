@@ -41,7 +41,8 @@ const PageLoader = () => {
 useAuthStore.getState().checkSession();
 
 function IndexRedirect() {
-  return <Navigate to={isOnboarded() ? '/home' : '/onboarding'} replace />;
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  return <Navigate to={isAuthenticated ? (isOnboarded() ? '/home' : '/onboarding') : '/signup'} replace />;
 }
 
 // 비로그인 유저 리다이렉트 가드

@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, JSON, Boolean, Text
+from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, JSON, Boolean, Text, BigInteger
 from sqlalchemy.sql import func
 from ..core.db import Base
 
@@ -7,6 +7,9 @@ class User(Base):
     __tablename__ = "users"
     id = Column(String, primary_key=True, index=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+    # 개인화 스크롤 baseline(rolling): {easy, hard, d_easy, d_hard, n_sessions}.
+    # 세션 종료(/result)마다 EWMA로 갱신되어 읽을수록 정교해진다.
+    scroll_baseline = Column(JSON, nullable=True)
 
 
 class ReadingSession(Base):
@@ -18,6 +21,8 @@ class ReadingSession(Base):
     comprehension_score = Column(Float, nullable=True)
     engagement_score = Column(Float, nullable=True)
     difficulty_score = Column(Float, nullable=True, default=50.0)
+    readability_score = Column(Float, nullable=True, default=50.0)  # 2번 이독성(독립변수)
+    literacy_domains = Column(JSON, nullable=True)  # 문해 5대 지표(레이더용) {comprehension,focus,closeReading,challenge,stability}
     xp_earned = Column(Integer, nullable=True, default=0)
     duration_seconds = Column(Integer, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
@@ -29,7 +34,7 @@ class ReadingEvent(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     session_id = Column(String, ForeignKey("reading_sessions.id"))
     event_type = Column(String)
-    timestamp_ms = Column(Integer)
+    timestamp_ms = Column(BigInteger)
     metadata_json = Column(JSON, nullable=True)
 
 

@@ -389,7 +389,7 @@ export default function OnboardingPage() {
 
               <div className="text-[11px] mt-5 p-3 rounded bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 leading-relaxed flex gap-2 items-start">
                 <AlertCircle size={14} className="shrink-0 mt-0.5" />
-                <span>이 기준선보다 과도하게 빠른 속도로 스크롤할 경우 <b>"대충 훑어 읽기(Skimming)"</b>로 감지되어 실시간 집중도 케어 비서가 작동합니다.</span>
+                <span>이 두 속도로 <b>나만의 "난이도별 읽기 속도" 기준선</b>을 만들었어요. 앞으로 <b>글이 어려울수록 더 촘촘하게</b> 훑어 읽기(Skimming)를 감지하고, <b>읽을수록 내 속도에 맞춰 정교해집니다.</b></span>
               </div>
             </div>
 

@@ -93,7 +93,7 @@ export default function SignUpPage() {
               {/* 버튼 주변 펄스 애니메이션 (AI 느낌) */}
               <motion.div
                 className="absolute inset-0 rounded-lg -z-10"
-                style={{ backgroundColor: 'var(--color-primary)', opacity: 0.3, filter: 'blur(15px)' }}
+                style={{ background: 'linear-gradient(135deg, #8B5CF6 0%, #6D28D9 100%)', opacity: 0.3, filter: 'blur(15px)' }}
                 animate={{ scale: [1, 1.1, 1] }}
                 transition={{ duration: 2, repeat: Infinity }}
               />
@@ -101,8 +101,8 @@ export default function SignUpPage() {
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
                 onClick={() => setShowForm(true)}
-                className="flex items-center justify-center gap-2 px-8 py-3.5 rounded-lg text-white font-bold text-lg shadow-lg relative z-10"
-                style={{ backgroundColor: 'var(--color-primary)' }}
+                className="flex items-center justify-center gap-2 px-8 py-3.5 rounded-lg text-white font-bold text-lg shadow-lg relative z-10 cursor-pointer"
+                style={{ background: 'linear-gradient(135deg, #8B5CF6 0%, #6D28D9 100%)' }}
               >
                 가입하기 무료입니다 <ArrowRight size={20} />
               </motion.button>
@@ -110,8 +110,8 @@ export default function SignUpPage() {
               <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
                 <Link
                   to="/login"
-                  className="flex items-center justify-center gap-2 px-8 py-3.5 rounded-lg font-bold text-lg border-2"
-                  style={{ borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
+                  className="flex items-center justify-center gap-2 px-8 py-3.5 rounded-lg font-bold text-lg border-2 cursor-pointer"
+                  style={{ borderColor: 'var(--color-primary)', color: 'var(--color-primary)', backgroundColor: 'transparent' }}
                 >
                   로그인하기
                 </Link>

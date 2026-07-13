@@ -42,6 +42,9 @@ def start_session(payload: dict) -> dict:
     )
     state = run_content_reducer(state)
     state = prebuild_quizzes(state)  # 각 chunk O/X 프리젠 → state["quizzes"]
+    baseline = _normalize_scroll_baseline(payload.get("baselineScrollSpeed") or payload.get("scroll_baseline"))
+    if baseline:
+        state["scroll_baseline"] = baseline  # 난이도-인지 개인화 스키밍 임계값에 사용
     SESSION_STORE[session_id] = state
 
     return {
@@ -131,6 +134,41 @@ def _required_str(payload: dict, field: str) -> str:
     if not isinstance(value, str) or not value.strip():
         raise HTTPException(status_code=422, detail=f"{field} is required")
     return value
+
+
+def _normalize_scroll_baseline(raw: object) -> dict | None:
+    """온보딩 캘리브레이션 baseline을 {easy, hard, d_easy, d_hard, n_sessions}로 정규화.
+
+    프론트는 camelCase(dEasy/dHard)로 보낼 수 있어 둘 다 수용한다. easy/hard(px/ms)가
+    없으면 None(개인화 미적용 → 기본 임계값 1.5).
+    """
+    if not isinstance(raw, dict):
+        return None
+
+    def _f(v):
+        try:
+            return float(v)
+        except (TypeError, ValueError):
+            return None
+
+    easy = _f(raw.get("easy"))
+    hard = _f(raw.get("hard"))
+    if easy is None or hard is None:
+        return None
+
+    out: dict = {"easy": max(0.0, easy), "hard": max(0.0, hard)}
+    d_easy = _f(raw.get("d_easy") if raw.get("d_easy") is not None else raw.get("dEasy"))
+    d_hard = _f(raw.get("d_hard") if raw.get("d_hard") is not None else raw.get("dHard"))
+    if d_easy is not None:
+        out["d_easy"] = d_easy
+    if d_hard is not None:
+        out["d_hard"] = d_hard
+    n = raw.get("n_sessions", raw.get("nSessions"))
+    try:
+        out["n_sessions"] = max(0, int(n)) if n is not None else 0
+    except (TypeError, ValueError):
+        out["n_sessions"] = 0
+    return out
 
 
 def _normalize_events(events: list[dict]) -> list[ReadingEvent]:

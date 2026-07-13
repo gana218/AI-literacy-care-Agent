@@ -25,7 +25,7 @@ from backend.app.agents.cognitive_care_client import (
 )
 from backend.app.agents.content_reducer_client import run_content_reducer
 from backend.app.api.frontend_contract import to_intervention_command, to_session_result
-from backend.app.api.reading_session import SESSION_STORE, _normalize_events
+from backend.app.api.reading_session import SESSION_STORE, _normalize_events, _normalize_scroll_baseline
 from backend.app.orchestrator.graph import run_reading_session
 from backend.app.agents.qa_eval_client import run_qa_eval_agent
 from backend.app.orchestrator.quiz import apply_pick_quiz, prebuild_quizzes, submit_ox_quiz
@@ -59,6 +59,9 @@ def start_session(payload: dict) -> dict:
     )
     state = run_content_reducer(state)
     state = prebuild_quizzes(state)  # 각 chunk O/X 프리젠 → state["quizzes"]
+    baseline = _normalize_scroll_baseline(payload.get("baselineScrollSpeed") or payload.get("scroll_baseline"))
+    if baseline:
+        state["scroll_baseline"] = baseline  # 난이도-인지 개인화 스키밍 임계값에 사용
     SESSION_STORE[session_id] = state
 
     return {
@@ -90,7 +93,11 @@ def push_events(session_id: str, payload: dict) -> dict:
     command = to_intervention_command(state)
     # 디버그 모니터용 감점 내역(집중도 파라미터 실시간 확인). 프론트 계약과 무관한
     # 추가 키라 4번 render()는 무시한다. 누적 reading_events 기준 서버 진실값.
-    command["debug"] = calculate_focus_breakdown(state.get("reading_events", []))
+    command["debug"] = calculate_focus_breakdown(
+        state.get("reading_events", []),
+        baseline=state.get("scroll_baseline") if isinstance(state.get("scroll_baseline"), dict) else None,
+        difficulty_score=state.get("difficulty_score"),
+    )
     return command
 
 

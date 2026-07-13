@@ -14,10 +14,57 @@ from ..schemas.schemas import (
 from ..orchestrator.state import create_initial_state
 from ..orchestrator.graph import run_reading_session
 from .frontend_contract import to_intervention_command, to_session_result
-from ..services.cognitive_care import calculate_focus_score, determine_intervention
+from ..services.cognitive_care import (
+    calculate_focus_score,
+    determine_intervention,
+    _scroll_velocity,
+    _personalized_scroll_threshold,
+)
+
+
+def _update_user_scroll_baseline(user, state_events: list, difficulty_score: float) -> None:
+    """세션 종료 시 개인화 baseline을 EWMA로 갱신한다(rolling).
+
+    이번 글 난이도 D에서 "정상 읽기"로 스크롤한 속도의 중앙값을 관측치 v_obs로 삼아,
+    D에 더 가까운 캘리브레이션 점(easy/hard)을 v_obs 쪽으로 당긴다. n_sessions++로 신뢰도↑.
+    """
+    if user is None:
+        return
+    base = getattr(user, "scroll_baseline", None)
+    if not isinstance(base, dict) or base.get("easy") is None:
+        return  # 온보딩 baseline이 있어야 갱신 대상이 됨
+
+    thr = _personalized_scroll_threshold(base, difficulty_score)
+    vels = []
+    for e in state_events:
+        if e.get("type") != "scroll":
+            continue
+        v = _scroll_velocity(e)  # top-level velocity 또는 metadata.payload.scrollVelocity 자동 처리
+        if 0.05 < v < thr:  # 스키밍(≥thr)·정지(≈0) 제외 = 정상 읽기 속도
+            vels.append(v)
+    if not vels:
+        return
+    vels.sort()
+    v_obs = vels[len(vels) // 2]  # 중앙값
+
+    alpha = 0.3
+    d_easy = float(base.get("d_easy", 20.0))
+    d_hard = float(base.get("d_hard", 75.0))
+    nb = dict(base)
+    if abs(difficulty_score - d_easy) <= abs(difficulty_score - d_hard):
+        nb["easy"] = round((1 - alpha) * float(base.get("easy", v_obs)) + alpha * v_obs, 3)
+    else:
+        nb["hard"] = round((1 - alpha) * float(base.get("hard", v_obs)) + alpha * v_obs, 3)
+    try:
+        nb["n_sessions"] = int(base.get("n_sessions", 0)) + 1
+    except (TypeError, ValueError):
+        nb["n_sessions"] = 1
+    user.scroll_baseline = nb
 from ..services.quiz_service import select_quiz_for_state, generate_ox_quiz
 
 router = APIRouter(prefix="/api/session", tags=["Sessions"])
+
+
 
 @router.post("/start", response_model=SessionStartResponse)
 async def start_session(req: SessionStartRequest, request: Request, db: AsyncSession = Depends(get_db)):
@@ -25,12 +72,14 @@ async def start_session(req: SessionStartRequest, request: Request, db: AsyncSes
     user_result = await db.execute(select(User).filter(User.id == req.userId))
     user = user_result.scalars().first()
     if not user:
-        new_user = User(id=req.userId)
-        db.add(new_user)
+        user = User(id=req.userId)
+        db.add(user)
         try:
             await db.commit()
         except IntegrityError:
             await db.rollback()
+            # 경합으로 이미 생성됐으면 다시 조회
+            user = (await db.execute(select(User).filter(User.id == req.userId))).scalars().first()
 
     session_id = f"s_{uuid.uuid4().hex[:8]}"
     document_id = req.articleId or "doc"
@@ -43,13 +92,28 @@ async def start_session(req: SessionStartRequest, request: Request, db: AsyncSes
     db.add(new_session)
     await db.commit()
     
-    # 7/10: 온보딩 캘리브레이션 baselineScrollSpeed를 Redis에 보관
+    # 개인화 스크롤 baseline: 유저에 누적된 rolling baseline을 우선 사용하고, 없으면 온보딩값 사용.
+    # (rolling은 세션을 거칠수록 정교해지므로 신뢰도가 높다)
     redis_client = await get_redis()
-    if req.baselineScrollSpeed:
+    baseline_val = None
+    persisted = getattr(user, "scroll_baseline", None) if user else None
+    if isinstance(persisted, dict) and persisted.get("easy") is not None:
+        baseline_val = persisted
+    elif req.baselineScrollSpeed:
         baseline_val = {
             "easy": req.baselineScrollSpeed.easy,
-            "hard": req.baselineScrollSpeed.hard
+            "hard": req.baselineScrollSpeed.hard,
+            "d_easy": (req.baselineScrollSpeed.dEasy if req.baselineScrollSpeed.dEasy is not None else 20.0),
+            "d_hard": (req.baselineScrollSpeed.dHard if req.baselineScrollSpeed.dHard is not None else 75.0),
+            "n_sessions": 0,
         }
+        # 온보딩값을 유저에 초기 저장(다음 세션부터 rolling 갱신)
+        try:
+            user.scroll_baseline = baseline_val
+            await db.commit()
+        except Exception:
+            await db.rollback()
+    if baseline_val:
         await redis_client.set(f"session:{session_id}:baseline", json.dumps(baseline_val))
 
     host = request.headers.get("host", "localhost:8000")
@@ -105,6 +169,11 @@ async def start_session(req: SessionStartRequest, request: Request, db: AsyncSes
     redis_client = await get_redis()
     await redis_client.set(f"session:{session_id}:quizzes", json.dumps(quizzes))
     await redis_client.set(f"session:{session_id}:chunks", json.dumps(updated_state.get("chunks", [])))
+    # 글 난이도/이독성(문서 레벨) 보관 → /result 점수 계산 시 재사용(도전력 도메인 품질).
+    await redis_client.set(f"session:{session_id}:textmeta", json.dumps({
+        "difficulty_score": updated_state.get("difficulty_score", 50.0),
+        "readability_score": updated_state.get("readability_score", 50.0),
+    }))
     
     return SessionStartResponse(
         sessionId=session_id, 
@@ -129,10 +198,11 @@ async def process_events(session_id: str, req: EventsRequestModel):
                 "timestamp_ms": data["timestamp_ms"],
                 "position": data.get("position"),
                 "duration_ms": data.get("duration_ms"),
+                "velocity": data.get("velocity"),
                 "metadata": data
             })
 
-        # 7/10: 온보딩 캘리브레이션 baseline 로드
+        # 개인화 캘리브레이션 baseline 로드
         baseline_raw = await redis_client.get(f"session:{session_id}:baseline")
         baseline = None
         if baseline_raw:
@@ -141,8 +211,17 @@ async def process_events(session_id: str, req: EventsRequestModel):
             except Exception:
                 pass
 
+        # 글 난이도(2번) 로드 → 난이도-인지 스키밍 임계값에 사용
+        difficulty_score = None
+        textmeta_raw = await redis_client.get(f"session:{session_id}:textmeta")
+        if textmeta_raw:
+            try:
+                difficulty_score = json.loads(textmeta_raw).get("difficulty_score")
+            except Exception:
+                pass
+
         user_requested_quiz = any(e.get("type") == "request_quiz" for e in reading_events)
-        focus_score = calculate_focus_score(reading_events, baseline)
+        focus_score = calculate_focus_score(reading_events, baseline, difficulty_score)
         intervention_needed, intervention_level, msg = determine_intervention(focus_score)
         
         state = create_initial_state(session_id=session_id, user_id="", document_id="", raw_text="")
@@ -175,34 +254,74 @@ async def process_events(session_id: str, req: EventsRequestModel):
             quizzes_raw = await redis_client.get(f"session:{session_id}:quizzes")
             chunks_raw = await redis_client.get(f"session:{session_id}:chunks")
             asked_raw = await redis_client.get(f"session:{session_id}:asked_quizzes")
+            last_quiz_time_raw = await redis_client.get(f"session:{session_id}:last_quiz_time")
+            finish_quiz_shown_raw = await redis_client.get(f"session:{session_id}:finish_quiz_shown")
             
             if quizzes_raw and chunks_raw:
                 state["quizzes"] = json.loads(quizzes_raw)
                 state["chunks"] = json.loads(chunks_raw)
                 state["asked_quiz_ids"] = json.loads(asked_raw) if asked_raw else []
                 
-                # 100% 도달 시, 이미 풀었던 문제라도 다시 제공하여 마무리 퀴즈가 뜨도록 함
+                import time
+                current_time = time.time()
+                last_quiz_time = float(last_quiz_time_raw) if last_quiz_time_raw else 0.0
+                finish_quiz_shown = bool(finish_quiz_shown_raw)
+                
+                # M3: 쿨다운(25초) 및 상한(최대 3번) 체크
                 is_finishing = current_progress >= 100
-                selected_quizzes = select_quiz_for_state(state, ignore_asked=is_finishing)
-                if selected_quizzes:
-                    state["intervention"]["quiz_data"] = selected_quizzes
-                    # 출제 기록 업데이트
-                    for q in selected_quizzes:
-                        state["asked_quiz_ids"].append(q["quizId"])
-                    await redis_client.set(f"session:{session_id}:asked_quizzes", json.dumps(state["asked_quiz_ids"]))
+                can_show_quiz = True
+                
+                if user_requested_quiz:
+                    can_show_quiz = True
+                elif is_finishing:
+                    if finish_quiz_shown:
+                        can_show_quiz = False
                 else:
-                    # 적절한 퀴즈가 없으면
-                    if current_progress >= 100 and not user_requested_quiz:
-                        state["intervention"]["level"] = "none"
-                        state["intervention"]["type"] = "none"
-                        state["intervention"]["message"] = ""
+                    if current_time - last_quiz_time < 25.0:
+                        can_show_quiz = False
+                    if len(state["asked_quiz_ids"]) >= 3:
+                        can_show_quiz = False
+
+                if can_show_quiz:
+                    # 완독 마무리 퀴즈는 최대 1번만
+                    selected_quizzes = select_quiz_for_state(state, ignore_asked=False)
+                    
+                    # [C1] JIT 퀴즈가 생성되었을 수 있으므로 quizzes를 Redis에 다시 저장
+                    await redis_client.set(f"session:{session_id}:quizzes", json.dumps(state["quizzes"]))
+                    
+                    if selected_quizzes:
+                        # [M3] 3문제 띄워주기 위해 최대 3개 반환
+                        selected_quiz = selected_quizzes[:3]
+                        state["intervention"]["quiz_data"] = selected_quiz
+                        
+                        # 출제 기록 업데이트
+                        for q in selected_quiz:
+                            state["asked_quiz_ids"].append(q["quizId"])
+                        await redis_client.set(f"session:{session_id}:asked_quizzes", json.dumps(state["asked_quiz_ids"]))
+                        await redis_client.set(f"session:{session_id}:last_quiz_time", str(current_time))
+                        
+                        if is_finishing:
+                            await redis_client.set(f"session:{session_id}:finish_quiz_shown", "1")
                     else:
-                        state["intervention"]["level"] = "medium"
-                        state["intervention"]["type"] = "nudge"
+                        # 적절한 퀴즈가 없으면
+                        if is_finishing and not user_requested_quiz:
+                            state["intervention"]["level"] = "none"
+                            state["intervention"]["type"] = "none"
+                            state["intervention"]["message"] = ""
+                        else:
+                            state["intervention"]["level"] = "medium"
+                            state["intervention"]["type"] = "nudge"
+                else:
+                    # 퀴즈를 띄울 수 없으면 강제로 none 또는 nudge 처리
+                    state["intervention"]["level"] = "none"
+                    state["intervention"]["type"] = "none"
+                    state["intervention"]["message"] = ""
         
         return to_intervention_command(state)
-    finally:
-        pass
+    except Exception as e:
+        import logging
+        logging.error(f"Error in process_events: {e}")
+        raise
 
 @router.post("/{session_id}/quiz/submit", response_model=QuizSubmitResponse)
 async def submit_quiz(session_id: str, req: QuizSubmitRequest):
@@ -308,8 +427,10 @@ async def finish_session(
             message="Session finished and flushed to PostgreSQL.",
             saved_events_count=saved_count
         )
-    finally:
-        pass
+    except Exception as e:
+        import logging
+        logging.error(f"Error in finish_session: {e}")
+        raise
 
 @router.get("/{session_id}/result")
 async def get_session_result(session_id: str, db: AsyncSession = Depends(get_db)):
@@ -320,7 +441,7 @@ async def get_session_result(session_id: str, db: AsyncSession = Depends(get_db)
         session = result.scalars().first()
         if not session:
             raise HTTPException(status_code=404, detail="Session not found")
-            
+
         # Redis에서 먼저 가져오기 (M4 fallback)
         redis_key = f"session:{session_id}:events"
         all_events_raw = await redis_client.lrange(redis_key, 0, -1)
@@ -365,7 +486,17 @@ async def get_session_result(session_id: str, db: AsyncSession = Depends(get_db)
             raw_text=""
         )
         initial_state["reading_events"] = state_events
-        
+
+        # 글 난이도/이독성 복원(/start에서 보관) → 도전력 도메인·글 프로필이 실제 글 기준으로 계산됨.
+        textmeta_raw = await redis_client.get(f"session:{session_id}:textmeta")
+        if textmeta_raw:
+            try:
+                tm = json.loads(textmeta_raw)
+                initial_state["difficulty_score"] = tm.get("difficulty_score", 50.0)
+                initial_state["readability_score"] = tm.get("readability_score", 50.0)
+            except Exception:
+                pass
+
         # Q1/Q2: Redis에서 실제 퀴즈 채점 결과 읽기 (stub 제거)
         quiz_key = f"session:{session_id}:quiz_result"
         quiz_raw = await redis_client.get(quiz_key)
@@ -380,6 +511,23 @@ async def get_session_result(session_id: str, db: AsyncSession = Depends(get_db)
             # 퀴즈를 아예 안 풀었을 때 기본값 (점수 반영 안 됨)
             initial_state["quiz_result"] = {"correct_count": 0, "total_count": 0}
 
+        # [C2/M1] QA 입력 복원 — /start에서 Redis에 보관한 실제 chunks(원문/요약)·quizzes(진술문)를
+        # state로 되살려 웹 경로에서도 faithfulness/relevance가 실측되게 한다.
+        # (복원 안 하면 raw_text=""·chunks 부재로 QA가 항상 0으로 나옴)
+        # ※ 반드시 run_reading_session 전에 평가 — 이후 content_reducer가 chunks를 스텁으로 덮어씀.
+        chunks_raw = await redis_client.get(f"session:{session_id}:chunks")
+        if chunks_raw:
+            try:
+                initial_state["chunks"] = json.loads(chunks_raw)
+            except Exception:
+                pass
+        quizzes_raw = await redis_client.get(f"session:{session_id}:quizzes")
+        if quizzes_raw:
+            try:
+                initial_state["quizzes"] = json.loads(quizzes_raw)
+            except Exception:
+                pass
+
         # Q4: 5번 QA 품질 게이트 (실패해도 세션 유지)
         try:
             from backend.evaluation.evaluation_pipeline import run_evaluation_from_state
@@ -389,9 +537,43 @@ async def get_session_result(session_id: str, db: AsyncSession = Depends(get_db)
             initial_state.setdefault("errors", []).append({"step": "qa_evaluation", "error": str(_qa_err)})
 
         final_state = run_reading_session(initial_state)
+
+        # [C3] DB에 세션 결과 저장
+        session.literacy_score = final_state.get("literacy_score", 50.0)
+        score_breakdown = final_state.get("score_breakdown", {})
+        session.comprehension_score = score_breakdown.get("comprehension_score", 50.0)
+        session.engagement_score = score_breakdown.get("engagement_score", 50.0)
+        # 이독성 + 문해 5대 지표 저장(대시보드 레이더의 실데이터 소스)
+        session.readability_score = score_breakdown.get("readability_score", 50.0)
+        session.literacy_domains = final_state.get("literacy_domains") or score_breakdown.get("literacy_domains")
+
+        # duration_seconds 계산 (첫 이벤트와 마지막 이벤트의 timestamp 차이)
+        if state_events:
+            start_ts = state_events[0].get("timestamp_ms", 0)
+            end_ts = state_events[-1].get("timestamp_ms", start_ts)
+            session.duration_seconds = max(0, int((end_ts - start_ts) / 1000.0))
+        else:
+            session.duration_seconds = 0
+            
+        session.xp_earned = sum(ans.get("correct", False) * 10 for ans in initial_state.get("quiz_result", {}).get("answers", []))
+
+        # ── 개인화 baseline rolling 갱신(EWMA) ──
+        # 이번 세션에서 "정상 읽기"로 스크롤한 속도(스키밍/0 제외)의 중앙값을 관측치로,
+        # 이 글 난이도에 가까운 캘리브레이션 점(easy/hard)을 EWMA로 당긴다 → 읽을수록 정교.
+        try:
+            user_result = await db.execute(select(User).filter(User.id == session.user_id))
+            user = user_result.scalars().first()
+            _update_user_scroll_baseline(user, state_events, initial_state.get("difficulty_score", 50.0))
+        except Exception as _bl_err:
+            logging_import = __import__("logging"); logging_import.warning(f"baseline update skip: {_bl_err}")
+
+        await db.commit()
+
         return to_session_result(final_state)
-    finally:
-        pass
+    except Exception as e:
+        import logging
+        logging.error(f"Error in get_session_result: {e}")
+        raise
 
 @router.post("/{session_id}/explain", response_model=TermExplainResponse)
 async def explain_term(
@@ -427,19 +609,16 @@ async def explain_term(
 @router.post("/reset")
 async def reset_demo_data(db: AsyncSession = Depends(get_db)):
     """전체 데이터베이스 및 Redis 세션 데이터를 완전 초기화하여 시연 리허설 반복 실행을 보장함 (7/13, 7/14)"""
-    from sqlalchemy import delete
-    from ..models.models import ReadingEvent, ReadingSession, User, LiteracyProfile, QuizResult
+    from ..core.db import engine
+    from ..models.models import Base
     
     redis_client = await get_redis()
     
     try:
-        # 1. DB 모든 레코드 삭제
-        await db.execute(delete(QuizResult))
-        await db.execute(delete(ReadingEvent))
-        await db.execute(delete(ReadingSession))
-        await db.execute(delete(LiteracyProfile))
-        await db.execute(delete(User))
-        await db.commit()
+        # DB 모든 테이블을 Drop 후 Recreate하여 스키마 변경 사항(readability_score 등)을 강제 적용
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.drop_all)
+            await conn.run_sync(Base.metadata.create_all)
         
         # 2. Redis 세션 캐시 버퍼 제거
         # Redis 내의 모든 키를 탐색하여 삭제
