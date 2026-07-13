@@ -90,7 +90,13 @@ window.ALC_Session = (() => {
         });
         render(await res.json());
       } catch (e) {
-        console.warn("[ALC] 이벤트 전송 실패:", e);
+        const msg = e.message || String(e);
+        if (msg.includes("message channel closed") || msg.includes("context invalidated")) {
+          // 페이지 새로고침/창 닫기로 인한 정상적인 연결 끊김은 로그로만 처리
+          console.log("[ALC] 페이지 이동/새로고침으로 통신 채널이 종료되었습니다.");
+        } else {
+          console.warn("[ALC] 이벤트 전송 실패:", e);
+        }
       }
     }
 
