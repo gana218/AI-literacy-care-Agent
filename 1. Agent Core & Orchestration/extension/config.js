@@ -8,7 +8,7 @@ window.ALC_CONFIG = {
   // 전송은 REST(ADR-001). WebSocket 없음.
 
   // 읽기 세션 자동 시작 임계값
-  MIN_READABLE_CHARS: 800, // 본문이 이 글자 수 이상이면 "읽을 만한 글"로 판정
+  MIN_READABLE_CHARS: 400, // 본문이 이 글자 수 이상이면 "읽을 만한 글"로 판정
   START_DWELL_MS: 3000, // 페이지에 이만큼 머무르면 세션 시작
   SCROLL_THROTTLE_MS: 120, // 스크롤 이벤트 캡처 최소 간격
 
