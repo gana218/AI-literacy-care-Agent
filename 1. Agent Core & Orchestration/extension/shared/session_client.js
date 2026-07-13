@@ -45,22 +45,35 @@ function getAlcPort() {
   return alcPort;
 }
 
-// Service Worker를 경유하는 fetch 프록시 함수 (CORS 및 CSP 블록 우회, 포트 기반 장시간 연동 보장)
+// Service Worker를 경유하는 fetch 프록시 함수 (CORS 및 CSP 블록 우회, 포트 기반 장시간 연동 보장 + 일시적 끊김 자가 치유)
 window.ALC_Fetch = async function (url, options = {}) {
-  const port = getAlcPort();
-  if (!port) {
-    return fetch(url, options);
-  }
-  return new Promise((resolve, reject) => {
-    const requestId = "req_" + Math.random().toString(36).substr(2, 9);
-    alcPendingRequests.set(requestId, { resolve, reject });
-    try {
-      port.postMessage({ type: "ALC_API_REQUEST", requestId, url, options });
-    } catch (err) {
-      alcPendingRequests.delete(requestId);
-      reject(err);
+  const executeFetch = () => {
+    const port = getAlcPort();
+    if (!port) {
+      return fetch(url, options);
     }
-  });
+    return new Promise((resolve, reject) => {
+      const requestId = "req_" + Math.random().toString(36).substr(2, 9);
+      alcPendingRequests.set(requestId, { resolve, reject });
+      try {
+        port.postMessage({ type: "ALC_API_REQUEST", requestId, url, options });
+      } catch (err) {
+        alcPendingRequests.delete(requestId);
+        reject(err);
+      }
+    });
+  };
+
+  try {
+    return await executeFetch();
+  } catch (err) {
+    if (err.message === "ALC Port disconnected") {
+      console.warn("[ALC] Port disconnected, retrying fetch connection...");
+      alcPort = null; // 포트 인스턴스 초기화 후 강제 재연결
+      return await executeFetch();
+    }
+    throw err;
+  }
 };
 
 window.ALC_Session = (() => {
