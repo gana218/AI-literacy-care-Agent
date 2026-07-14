@@ -124,6 +124,12 @@ async def get_user_growth(user_id: str, db: AsyncSession = Depends(get_db)):
     sorted_sessions = sorted(sessions, key=lambda s: s.created_at if s.created_at else datetime.min.replace(tzinfo=timezone.utc))
     first_session = sorted_sessions[0]
     
+    # 실제 활동(퀴즈 풀이, 또는 리터러시 점수가 입력되었거나, finished_at이 명시됨)이 있었던 세션 필터링
+    active_sessions = [s for s in sorted_sessions if (s.literacy_score and s.literacy_score > 0) or s.xp_earned > 0 or s.finished_at]
+    if not active_sessions:
+        active_sessions = sorted_sessions
+    latest_active_session = active_sessions[-1]
+    
     # 첫 세션 (케어 전 baseline)
     before_eng = first_session.engagement_score or 50.0
     before_comp = first_session.comprehension_score or 50.0
@@ -185,7 +191,7 @@ async def get_user_growth(user_id: str, db: AsyncSession = Depends(get_db)):
                     })
         
         # 2. 가장 최근 세션이 활성화 상태인 경우 Redis 버퍼에서 실시간 lookup 이벤트 추가 조회
-        latest_session = sorted_sessions[-1]
+        latest_session = latest_active_session
         active_events_raw = await redis_client.lrange(f"session:{latest_session.id}:events", 0, -1)
         for raw in active_events_raw:
             evt = json.loads(raw)
@@ -297,7 +303,7 @@ async def get_user_growth(user_id: str, db: AsyncSession = Depends(get_db)):
     }
     if sessions:
         try:
-            latest_session = sorted_sessions[-1]
+            latest_session = latest_active_session
             
             # 1. 퀴즈 제출 개수 및 정답률 집계
             quiz_results_result = await db.execute(
