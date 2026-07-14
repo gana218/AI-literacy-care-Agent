@@ -17,6 +17,13 @@ import { useReadingStore } from '../../stores/readingStore';
 import HighlightText from './HighlightText';
 import TermTooltip from './TermTooltip';
 import SelectionLookup from './SelectionLookup';
+import { Bot, FlaskConical, FileText } from 'lucide-react';
+
+const getCategoryIcon = (category: string) => {
+  if (category.includes('IT')) return <Bot size={24} strokeWidth={2.5} className="shrink-0 text-[var(--color-primary)]" />;
+  if (category.includes('과학')) return <FlaskConical size={24} strokeWidth={2.5} className="shrink-0 text-[var(--color-primary)]" />;
+  return <FileText size={24} strokeWidth={2.5} className="shrink-0 text-[var(--color-primary)]" />;
+};
 
 // ── 핵심 용어 사전 (6/30: ②번 RAG로 교체) ──────────────────────────
 const TERM_DICT: Record<string, string> = {
@@ -303,19 +310,21 @@ export const ReadingPane: React.FC = () => {
           >
             {article.category}
           </span>
-          <h1
-            style={{
-              fontSize: 'var(--text-2xl)',
-              fontWeight: 'var(--weight-bold)' as unknown as number,
-              color: 'var(--color-text)',
-              fontFamily: 'var(--font-sans)',
-              lineHeight: 'var(--leading-tight)',
-              letterSpacing: 'var(--tracking-kr)',
-              marginBottom: 'var(--space-2)',
-            }}
-          >
-            {article.title}
-          </h1>
+          <div className="flex items-center gap-2 mb-2">
+            {getCategoryIcon(article.category)}
+            <h1
+              style={{
+                fontSize: 'var(--text-2xl)',
+                fontWeight: 'var(--weight-bold)' as unknown as number,
+                color: 'var(--color-text)',
+                fontFamily: 'var(--font-sans)',
+                lineHeight: 'var(--leading-tight)',
+                letterSpacing: 'var(--tracking-kr)',
+              }}
+            >
+              {article.title.replace(/^[^a-zA-Z0-9가-힣]+\s*/, '')}
+            </h1>
+          </div>
           <div
             style={{
               display: 'flex',

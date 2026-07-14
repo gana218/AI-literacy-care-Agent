@@ -392,6 +392,7 @@ export const api = {
           { word: '녹색 전환 (GX)', meaning: '친환경적이고 지속 가능한 비즈니스 모델로의 변화.', level: '중', status: 'completed' },
           { word: '카나리아 (Canary)', meaning: '탄광의 새처럼 위험을 미리 알려주는 조기 경보 체계나 지표.', level: '상', status: 'review' },
           { word: '리터러시 (Literacy)', meaning: '글이나 정보를 읽고 비판적으로 이해하는 능력.', level: '하', status: 'completed' },
+        ],
         prescription: [
           "학습자의 이번 주 총 집중 독해 시간은 <strong class=\"text-[var(--color-primary)]\">164분</strong>으로, 지난주 대비 약 <strong>28% 증가</strong>했습니다.",
           "특히 'AI 기술과 일자리 변화' 같은 난도 높은 비문학 단락을 읽을 때 평균 체류(Dwell) 시간이 길어졌으나, 실시간으로 개입한 <strong class=\"text-[var(--color-nudge-soft)]\">Soft Nudge 용어 해설</strong>과 <strong class=\"text-[var(--color-nudge-medium)]\">간이 퀴즈</strong>를 거치며 독해 밸런스를 맞췄습니다. 결과적으로 <strong>어휘 능력 지표가 22점 상승</strong>하는 매우 긍정적인 성과를 냈습니다.",
@@ -417,12 +418,11 @@ export const api = {
           { word: '환각 현상 (Hallucination)', meaning: '인공지능이 사실이 아닌 거짓 정보를 진짜처럼 생성하는 현상.', level: '상', status: 'completed' },
           { word: '메타인지 (Metacognition)', meaning: '자신의 인지 과정을 스스로 파악하고 제어하는 상위 수준의 사고 능력.', level: '상', status: 'review' },
           { word: '가독성 (Readability)', meaning: '글이 읽히는 쉽고 명확한 정도.', level: '하', status: 'completed' },
->>>>>>> 093bcf1 (chore: optimize frontend components and resolve conflicts)
         ],
-        activityData: [],
-        words: [],
         prescription: [
-          "분석된 월간 학습 데이터가 부족합니다."
+          "이번 달 총 집중 독해 시간은 <strong class=\"text-[var(--color-primary)]\">650분</strong>으로, 꾸준한 우상향 곡선을 그렸습니다.",
+          "특히 월 중순부터 시작한 <strong>'기술 비문학 읽기 챌린지'</strong>를 통해 낯선 전문 용어(예: LLM, 환각 현상 등)를 문맥으로 추론하는 능력이 급성장했습니다. 이 과정에서 <strong class=\"text-[var(--color-nudge-soft)]\">개념 연결 넛지</strong>를 적극적으로 활용한 점이 주효했습니다.",
+          "<strong>💡 다음 달 목표:</strong> 현재 91%인 정독율을 유지하면서, 글을 읽는 <strong>독해 속도(현재 82)를 끌어올리는 훈련</strong>을 추천합니다. 익숙한 주제의 글을 타이머를 켜두고 조금 빠르게 읽어보세요."
         ]
       }
     };

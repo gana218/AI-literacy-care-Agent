@@ -1,4 +1,5 @@
 import { useNavigate, useLocation } from 'react-router-dom';
+import { Brain, User } from 'lucide-react';
 
 export default function BottomTabBar() {
   const navigate = useNavigate();
@@ -16,7 +17,7 @@ export default function BottomTabBar() {
         fontFamily: 'var(--font-sans)',
       }}
     >
-      {/* 🧠 AI 리터러시 케어 버튼 (Home) */}
+      {/* Brain AI 리터러시 케어 버튼 (Home) */}
       <button
         onClick={() => navigate('/home')}
         className="flex items-center gap-2 px-5 py-2.5 rounded-full transition-all duration-200 text-sm font-semibold cursor-pointer"
@@ -26,10 +27,10 @@ export default function BottomTabBar() {
           border: activePath === '/home' ? '1px solid var(--color-primary)' : '1px solid transparent',
         }}
       >
-        <span className="text-lg">🧠</span> AI 리터러시 케어
+        <span className="text-[var(--color-primary)]"><Brain size={18} strokeWidth={2.5} /></span> AI 리터러시 케어
       </button>
 
-      {/* 👤 성장 대시보드 버튼 (Profile) */}
+      {/* User 성장 대시보드 버튼 (Profile) */}
       <button
         onClick={() => navigate('/profile')}
         className="flex items-center gap-2 px-5 py-2.5 rounded-full transition-all duration-200 text-sm font-semibold cursor-pointer"
@@ -39,7 +40,7 @@ export default function BottomTabBar() {
           border: activePath === '/profile' ? '1px solid var(--color-primary)' : '1px solid transparent',
         }}
       >
-        <span className="text-lg">👤</span> 성장 대시보드
+        <User size={18} strokeWidth={2.5} /> 성장 대시보드
       </button>
     </div>
   );

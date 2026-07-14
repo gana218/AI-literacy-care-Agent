@@ -39,6 +39,7 @@ export default function OnboardingPage() {
   const [currentVelocity, setCurrentVelocity] = useState(0);
   const [easyBaseline, setEasyBaseline] = useState<number | null>(null);
   const [hardBaseline, setHardBaseline] = useState<number | null>(null);
+  const [isAtBottom, setIsAtBottom] = useState(false);
 
   const lastScrollY = useRef(0);
   const lastScrollTime = useRef(Date.now());
@@ -62,6 +63,7 @@ export default function OnboardingPage() {
   const startCalibrationEasy = () => {
     setScrollVelocities([]);
     setCurrentVelocity(0);
+    setIsAtBottom(false);
     lastScrollY.current = 0;
     lastScrollTime.current = Date.now();
     setStep('calibration_easy');
@@ -77,6 +79,7 @@ export default function OnboardingPage() {
     // Hard 단계 준비
     setScrollVelocities([]);
     setCurrentVelocity(0);
+    setIsAtBottom(false);
     lastScrollY.current = 0;
     lastScrollTime.current = Date.now();
     setStep('calibration_hard');
@@ -99,8 +102,14 @@ export default function OnboardingPage() {
   const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
     const el = e.currentTarget;
     const scrollTop = el.scrollTop;
+    const scrollHeight = el.scrollHeight;
+    const clientHeight = el.clientHeight;
     const now = Date.now();
     
+    if (scrollHeight - scrollTop <= clientHeight + 10) {
+      setIsAtBottom(true);
+    }
+
     const deltaY = Math.abs(scrollTop - lastScrollY.current);
     const deltaT = now - lastScrollTime.current; // ms
     
@@ -281,11 +290,11 @@ export default function OnboardingPage() {
               variant="primary"
               size="lg"
               className="w-full"
-              disabled={scrollVelocities.length < 15}
+              disabled={!isAtBottom && scrollVelocities.length < 15}
               onClick={completeCalibrationEasy}
-              style={{ opacity: scrollVelocities.length >= 15 ? 1 : 0.6 }}
+              style={{ opacity: (isAtBottom || scrollVelocities.length >= 15) ? 1 : 0.6 }}
             >
-              {scrollVelocities.length < 15 ? "더 안정적인 속도 측정을 위해 글을 조금 더 읽어주세요..." : <span className="flex items-center justify-center gap-2">다 읽었습니다 <CheckCircle2 size={18} /></span>}
+              {(!isAtBottom && scrollVelocities.length < 15) ? "더 안정적인 속도 측정을 위해 글을 조금 더 읽어주세요..." : <span className="flex items-center justify-center gap-2">다 읽었습니다 <CheckCircle2 size={18} /></span>}
             </Button>
           </div>
         )}
@@ -328,11 +337,11 @@ export default function OnboardingPage() {
               variant="primary"
               size="lg"
               className="w-full"
-              disabled={scrollVelocities.length < 15}
+              disabled={!isAtBottom && scrollVelocities.length < 15}
               onClick={completeCalibrationHard}
-              style={{ opacity: scrollVelocities.length >= 15 ? 1 : 0.6 }}
+              style={{ opacity: (isAtBottom || scrollVelocities.length >= 15) ? 1 : 0.6 }}
             >
-              {scrollVelocities.length < 15 ? "더 안정적인 속도 측정을 위해 글을 조금 더 읽어주세요..." : <span className="flex items-center justify-center gap-2">분석 완료하기 <Flag size={18} /></span>}
+              {(!isAtBottom && scrollVelocities.length < 15) ? "더 안정적인 속도 측정을 위해 글을 조금 더 읽어주세요..." : <span className="flex items-center justify-center gap-2">측정 완료하기 <CheckCircle2 size={18} /></span>}
             </Button>
           </div>
         )}

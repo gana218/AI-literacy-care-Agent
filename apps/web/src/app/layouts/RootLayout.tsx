@@ -6,6 +6,7 @@ import { useAuthStore } from '../../stores/authStore';
 import { useSessionConfig } from '../../stores/sessionConfigStore';
 import TutorialModal from '../../components/common/TutorialModal';
 import BottomTabBar from '../../components/common/BottomTabBar';
+import { Brain, BookOpen, User } from 'lucide-react';
 
 /**
  * RootLayout — 6/22 스토어 연결 업데이트
@@ -65,7 +66,7 @@ export default function RootLayout() {
         <div className="max-w-7xl mx-auto px-6 h-14 flex items-center justify-between">
           {/* 로고 */}
           <div className="flex items-center gap-2">
-            <span className="text-xl select-none">🧠</span>
+            <span className="text-xl select-none text-[var(--color-primary)]"><Brain size={24} strokeWidth={2.5} /></span>
             <span
               className="font-semibold text-base hidden sm:block"
               style={{
@@ -83,7 +84,7 @@ export default function RootLayout() {
             <NavLink
               to="/reading"
               className={({ isActive }) =>
-                `px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                `px-3 py-1.5 rounded-md text-sm font-medium transition-colors flex items-center gap-1.5 ${
                   isActive
                     ? 'bg-primary-tint text-primary'
                     : 'text-text-secondary hover:text-text hover:bg-surface-alt'
@@ -91,12 +92,12 @@ export default function RootLayout() {
               }
               style={{ fontFamily: 'var(--font-sans)' } as React.CSSProperties}
             >
-              📖 읽기
+              <BookOpen size={16} /> 읽기
             </NavLink>
             <NavLink
               to="/profile"
               className={({ isActive }) =>
-                `px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                `px-3 py-1.5 rounded-md text-sm font-medium transition-colors flex items-center gap-1.5 ${
                   isActive
                     ? 'bg-primary-tint text-primary'
                     : 'text-text-secondary hover:text-text hover:bg-surface-alt'
@@ -104,7 +105,7 @@ export default function RootLayout() {
               }
               style={{ fontFamily: 'var(--font-sans)' } as React.CSSProperties}
             >
-              🕶️ 내 프로필
+              <User size={16} /> 프로필
             </NavLink>
             <NavLink
               to="/home"

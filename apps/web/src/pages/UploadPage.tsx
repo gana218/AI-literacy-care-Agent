@@ -10,7 +10,13 @@ import { useReadingStore } from '../stores/readingStore';
 import { useAuthStore } from '../stores/authStore';
 import { Button } from '../components/common/Button';
 import BottomTabBar from '../components/common/BottomTabBar';
-import { FolderOpen, Folder, FileText, Calendar, Loader2 } from 'lucide-react';
+import { FolderOpen, Folder, FileText, Calendar, Loader2, Bot, FlaskConical } from 'lucide-react';
+
+export const getCategoryIcon = (category: string) => {
+  if (category.includes('IT')) return <Bot size={18} strokeWidth={2} />;
+  if (category.includes('과학')) return <FlaskConical size={18} strokeWidth={2} />;
+  return <FileText size={18} strokeWidth={2} />;
+};
 
 interface UploadedArticle {
   id: string;
@@ -31,7 +37,7 @@ const SAMPLE_TEXTS = [
 const DEFAULT_DEMO_ARTICLES: UploadedArticle[] = [
   {
     id: 'demo-ax',
-    title: '🤖 인공지능 전환(AX)과 디지털 리터러시의 사회학',
+    title: '인공지능 전환(AX)과 디지털 리터러시의 사회학',
     content: [
       "인공지능 전환(AX)이 가속화되면서 인간이 정보를 해석하고 재생산하는 방식에 혁명적 변화가 일어나고 있습니다. 과거의 디지털 격차가 '기기를 다룰 수 있는가'의 문제였다면, 현재의 격차는 'AI가 쏟아내는 정보의 진위를 비판적으로 성찰할 수 있는가'로 고도화되었습니다.",
       "대규모 언어 모델(LLM)이 작성한 텍스트는 겉보기에 완벽한 문장 구조를 지녀 독자를 쉽게 현혹합니다. 이를 무비판적으로 소비할 경우 인지부하를 외부 AI에 전적으로 외주화하게 되어, 인간 고유의 심층 독해 능력이 저하되는 인지적 Offloading 현상이 가속화됩니다.",
@@ -43,7 +49,7 @@ const DEFAULT_DEMO_ARTICLES: UploadedArticle[] = [
   },
   {
     id: 'demo-physics',
-    title: '📘 뢴트겐의 X-선 스펙트럼과 금속의 결정 구조 분석',
+    title: '뢴트겐의 X-선 스펙트럼과 금속의 결정 구조 분석',
     content: [
       "뢴트겐에 의해 발견된 X-선은 0.01~10nm 범위의 파장을 갖는 전자기파로, 가시광선의 파장에 비해 매우 짧아 물체에 깊숙이 침투하고 투과할 수 있는 특징을 지닙니다. 이는 재료의 표면뿐만 아니라 보이지 않는 내부 결정을 파악하는 데 널리 활용됩니다.",
       "X-선은 진공 속 전극 사이에 고전압을 가해 금속 필라멘트에서 방출된 열전자가 양극의 금속 표적을 큰 운동에너지로 충돌할 때 발생합니다. 방출된 X-선의 파장과 세기를 기록하면 Kα와 Kβ 등 뾰족하게 솟은 고유한 특성 스펙트럼 봉우리를 관찰할 수 있습니다.",
@@ -243,8 +249,11 @@ export default function UploadPage() {
                     }}
                   >
                     <div className="space-y-1 pr-4 flex-1">
-                      <div className="font-semibold text-sm line-clamp-1" style={{ color: 'var(--color-text)' }}>
-                        {art.title}
+                      <div className="font-semibold text-sm line-clamp-1 flex items-center gap-2" style={{ color: 'var(--color-text)' }}>
+                        <span className="text-[var(--color-primary)] shrink-0">
+                          {getCategoryIcon(art.category)}
+                        </span>
+                        <span>{art.title.replace(/^[^a-zA-Z0-9가-힣]+\s*/, '')}</span>
                       </div>
                       <div className="flex items-center gap-2 text-[11px]" style={{ color: 'var(--color-text-secondary)' }}>
                         <span className="inline-flex items-center gap-1"><Folder size={12} /> {art.category}</span>
