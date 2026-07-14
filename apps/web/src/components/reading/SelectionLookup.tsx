@@ -125,14 +125,22 @@ export default function SelectionLookup() {
 
   if (!sel) return null;
 
+  const POPUP_W = 260;
+  const MARGIN = 8;
   const popTop = Math.max(8, sel.y - 12);
+
+  // 팝업이 viewport 밖으로 잘리지 않도록 x 위치를 클램핑
+  const clampedPopX = Math.min(
+    Math.max(POPUP_W / 2 + MARGIN, sel.x),
+    window.innerWidth - POPUP_W / 2 - MARGIN
+  );
 
   return (
     <div data-sellookup>
       <div
         style={{
           position: 'fixed',
-          left: sel.x,
+          left: clampedPopX,
           top: popTop,
           transform: 'translate(-50%, -100%)',
           zIndex: 60,
