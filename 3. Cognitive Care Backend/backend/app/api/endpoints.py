@@ -370,6 +370,15 @@ async def submit_quiz(session_id: str, req: QuizSubmitRequest, db: AsyncSession 
         )
         db.add(new_result)
         await db.commit()
+        
+        # 퀴즈 제출 시 사용자 대시보드 데이터 캐시 무효화
+        try:
+            res = await db.execute(select(ReadingSession).filter(ReadingSession.id == session_id))
+            sess = res.scalars().first()
+            if sess:
+                await redis_client.delete(f"user:{sess.user_id}:growth_report_cache")
+        except Exception as cache_err:
+            print(f"Failed to clear cache on quiz submit: {cache_err}")
     except Exception as _db_err:
         await db.rollback()
         import logging
@@ -438,8 +447,26 @@ async def finish_session(
         session.comprehension_score = final_state.get("score_breakdown", {}).get("comprehension_score", req.comprehension_score)
         session.engagement_score = final_state.get("score_breakdown", {}).get("engagement_score", req.engagement_score)
         
+        # 4-1. 퀴즈 정답 결과로 총 획득 XP 산출 후 저장
+        try:
+            quiz_results_res = await db.execute(
+                select(QuizResult).filter(QuizResult.session_id == session_id)
+            )
+            q_results = quiz_results_res.scalars().all()
+            correct_count = sum(1 for qr in q_results if qr.is_correct)
+            session.xp_earned = correct_count * 10
+        except Exception as _xp_err:
+            session.xp_earned = 0
+            print(f"Failed to calculate session XP on finish: {_xp_err}")
+            
         await db.commit()
         await redis_client.delete(redis_key)
+        
+        # 4-2. 사용자 성장 보고서 캐시 무효화
+        try:
+            await redis_client.delete(f"user:{session.user_id}:growth_report_cache")
+        except Exception as cache_err:
+            print(f"Failed to clear cache on finish_session: {cache_err}")
         
         return SessionFinishResponse(
             session_id=session_id, 

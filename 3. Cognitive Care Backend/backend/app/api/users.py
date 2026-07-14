@@ -51,14 +51,24 @@ async def get_user_growth(user_id: str, db: AsyncSession = Depends(get_db)):
     Returns the user's detailed growth report data (weekly/monthly).
     Dynamically generated from ReadingSessions and LLM.
     """
+    redis_client = await get_redis()
+    cache_key = f"user:{user_id}:growth_report_cache"
+    try:
+        cached_raw = await redis_client.get(cache_key)
+        if cached_raw:
+            data = json.loads(cached_raw)
+            await redis_client.aclose()
+            return data
+    except Exception as cache_err:
+        print(f"Cache lookup failed: {cache_err}")
+
     sessions_result = await db.execute(select(ReadingSession).filter(ReadingSession.user_id == user_id))
     sessions = sessions_result.scalars().all()
     
     # Basic fallbacks if no sessions exist
     if not sessions:
+        await redis_client.aclose()
         return generate_empty_growth_report()
-
-    redis_client = await get_redis()
     
     # 1. 독해 시간 동적 산출 (활성 세션의 경우 Redis의 실시간 이벤트 간 시간 차이로 계산)
     total_xp = sum((s.xp_earned or 0) for s in sessions)
@@ -369,8 +379,6 @@ async def get_user_growth(user_id: str, db: AsyncSession = Depends(get_db)):
         except Exception as e:
             print(f"LLM call failed: {e}")
 
-    await redis_client.aclose()
-
     report = {
         "weekly": {
             "radarData": radar_data,
@@ -392,6 +400,14 @@ async def get_user_growth(user_id: str, db: AsyncSession = Depends(get_db)):
         "latestSessionSummary": latest_session_summary,
         "badges": badges_data
     }
+
+    # Cache the generated report in Redis for 24 hours to prevent slow page reloads
+    try:
+        await redis_client.set(cache_key, json.dumps(report), ex=86400)
+    except Exception as cache_err:
+        print(f"Failed to cache growth report: {cache_err}")
+
+    await redis_client.aclose()
     return report
 
 def generate_empty_growth_report():
@@ -457,4 +473,13 @@ async def update_user_vocab(user_id: str, req: VocabUpdateRequest, db: AsyncSess
                 db.add(ev)
                 
     await db.commit()
+
+    # Invalidate growth report cache
+    try:
+        redis_client = await get_redis()
+        await redis_client.delete(f"user:{user_id}:growth_report_cache")
+        await redis_client.aclose()
+    except Exception as cache_err:
+        print(f"Failed to clear cache in update_user_vocab: {cache_err}")
+
     return {"status": "success"}
