@@ -22,9 +22,19 @@ function getFocusLabel(score: number): string {
 }
 
 export const FloatingControlPanel: React.FC = () => {
-  const { focusScore, nudgeLevel, isQuizVisible } = useFocusStore();
-  const { progress, scrollVelocity, dwellTimeMs, gazeOutCount } = useReadingStore();
-  const { literacyScore, xp, level, levelProgress } = useScoreStore();
+  const focusScore = useFocusStore((s) => s.focusScore);
+  const nudgeLevel = useFocusStore((s) => s.nudgeLevel);
+  const isQuizVisible = useFocusStore((s) => s.isQuizVisible);
+
+  const progress = useReadingStore((s) => s.progress);
+  const scrollVelocity = useReadingStore((s) => s.scrollVelocity);
+  const dwellTimeMs = useReadingStore((s) => s.dwellTimeMs);
+  const gazeOutCount = useReadingStore((s) => s.gazeOutCount);
+
+  const literacyScore = useScoreStore((s) => s.literacyScore);
+  const xp = useScoreStore((s) => s.xp);
+  const level = useScoreStore((s) => s.level);
+  const levelProgress = useScoreStore((s) => s.levelProgress);
 
   const focusColor = getFocusColor(focusScore);
   const focusLabel = getFocusLabel(focusScore);
@@ -544,9 +554,17 @@ export default FloatingControlPanel;
  * FocusSimulator — 데모·심사 시연용 집중도 직접 조작 및 자동 E2E 시연기
  */
 function FocusSimulator() {
-  const { setFocusScore, dismissNudge, dismissQuiz, isQuizVisible } = useFocusStore();
-  const { setProgress } = useReadingStore();
-  const { restartDemoSession, quizResults, recordQuizResult, addXp } = useScoreStore();
+  const setFocusScore = useFocusStore((s) => s.setFocusScore);
+  const dismissNudge = useFocusStore((s) => s.dismissNudge);
+  const dismissQuiz = useFocusStore((s) => s.dismissQuiz);
+  const isQuizVisible = useFocusStore((s) => s.isQuizVisible);
+
+  const setProgress = useReadingStore((s) => s.setProgress);
+
+  const restartDemoSession = useScoreStore((s) => s.restartDemoSession);
+  const quizResults = useScoreStore((s) => s.quizResults);
+  const recordQuizResult = useScoreStore((s) => s.recordQuizResult);
+  const addXp = useScoreStore((s) => s.addXp);
 
   const [demoStep, setDemoStep] = useState<number | null>(null);
   const [demoStatus, setDemoStatus] = useState<string>('');

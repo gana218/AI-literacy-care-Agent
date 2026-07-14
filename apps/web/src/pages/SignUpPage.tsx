@@ -101,8 +101,8 @@ export default function SignUpPage() {
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
                 onClick={() => setShowForm(true)}
-                className="flex items-center justify-center gap-2 px-8 py-3.5 rounded-lg text-white font-bold text-lg shadow-lg relative z-10 cursor-pointer"
-                style={{ background: 'linear-gradient(135deg, #8B5CF6 0%, #6D28D9 100%)' }}
+                className="flex items-center justify-center gap-2 px-8 py-3.5 rounded-lg font-bold text-lg shadow-lg relative z-10 cursor-pointer"
+                style={{ backgroundColor: 'var(--color-primary)', color: 'var(--color-text)' }}
               >
                 가입하기 무료입니다 <ArrowRight size={20} />
               </motion.button>

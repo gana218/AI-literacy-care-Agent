@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   ResponsiveContainer,
@@ -16,7 +16,7 @@ import {
   Tooltip,
   Legend,
 } from 'recharts';
-import { Search, Trash2, X, AlertCircle, BookOpen } from 'lucide-react';
+import { Search, Trash2, X, AlertCircle, BookOpen, Activity } from 'lucide-react';
 import { Card } from '../common/Card';
 import { api, type GrowthReportResponse } from '../../lib/api';
 import { useSessionConfig } from '../../stores/sessionConfigStore';
@@ -75,7 +75,7 @@ const CustomActivityTooltip = ({ active, payload, label }: any) => {
   );
 };
 
-export default function DetailedGrowthReport() {
+const DetailedGrowthReport = React.memo(function DetailedGrowthReport() {
   const [tab, setTab] = useState<'weekly' | 'monthly'>('weekly');
   const [data, setData] = useState<GrowthReportResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -693,4 +693,6 @@ export default function DetailedGrowthReport() {
       </AnimatePresence>
     </Card>
   );
-}
+});
+
+export default DetailedGrowthReport;

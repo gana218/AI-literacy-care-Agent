@@ -17,8 +17,14 @@ interface SessionSummaryCardProps {
   isVisible: boolean;
 }
 
-export const SessionSummaryCard: React.FC<SessionSummaryCardProps> = ({ isVisible }) => {
-  const { literacyScore, comprehensionScore, engagementScore, xp, quizResults, badges, textProfile } = useScoreStore();
+export const SessionSummaryCard: React.FC<SessionSummaryCardProps> = React.memo(({ isVisible }) => {
+  const literacyScore = useScoreStore((s) => s.literacyScore);
+  const comprehensionScore = useScoreStore((s) => s.comprehensionScore);
+  const engagementScore = useScoreStore((s) => s.engagementScore);
+  const xp = useScoreStore((s) => s.xp);
+  const quizResults = useScoreStore((s) => s.quizResults);
+  const badges = useScoreStore((s) => s.badges);
+  const textProfile = useScoreStore((s) => s.textProfile);
 
   const correctCount = quizResults.filter((r) => r.correct).length;
   const quizAccuracy = quizResults.length > 0
@@ -192,7 +198,7 @@ export const SessionSummaryCard: React.FC<SessionSummaryCardProps> = ({ isVisibl
       )}
     </AnimatePresence>
   );
-};
+});
 
 /** 소형 지표 카드 */
 function MiniMetric({ label, value, color, sub }: { label: string; value: string; color: string; sub?: string }) {

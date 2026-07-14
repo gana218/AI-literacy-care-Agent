@@ -7,8 +7,11 @@ import { TrendingUp } from 'lucide-react';
 import LiteracyScoreChart from './LiteracyScoreChart';
 import { useScoreStore } from '../../stores/scoreStore';
 
-export const GrowthDashboard: React.FC = () => {
-  const { literacyScore, comprehensionScore, engagementScore, scoreSeries } = useScoreStore();
+export const GrowthDashboard: React.FC = React.memo(() => {
+  const literacyScore = useScoreStore((s) => s.literacyScore);
+  const comprehensionScore = useScoreStore((s) => s.comprehensionScore);
+  const engagementScore = useScoreStore((s) => s.engagementScore);
+  const scoreSeries = useScoreStore((s) => s.scoreSeries);
 
   // 케어 전후 최대 델타 계산
   const maxDelta =
@@ -86,7 +89,7 @@ export const GrowthDashboard: React.FC = () => {
       </div>
     </div>
   );
-};
+});
 
 function LegendDot({ color, dashed, label }: { color: string; dashed?: boolean; label: string }) {
   return (

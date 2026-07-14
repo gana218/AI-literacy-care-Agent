@@ -109,11 +109,12 @@ interface LiteracyScoreChartProps {
   hideLegend?: boolean;
 }
 
-export const LiteracyScoreChart: React.FC<LiteracyScoreChartProps> = ({
+export const LiteracyScoreChart: React.FC<LiteracyScoreChartProps> = React.memo(({
   height = 260,
   hideLegend = false,
 }) => {
-  const { weeklyScoreSeries, literacyScore } = useScoreStore();
+  const weeklyScoreSeries = useScoreStore((s) => s.weeklyScoreSeries);
+  const literacyScore = useScoreStore((s) => s.literacyScore);
 
   // 요일 및 차트 동적 데이터 변환
   const DAYS = useMemo(() => ['월', '화', '수', '목', '금', '토', '일'], []);
@@ -291,6 +292,6 @@ export const LiteracyScoreChart: React.FC<LiteracyScoreChartProps> = ({
       </ResponsiveContainer>
     </div>
   );
-};
+});
 
 export default LiteracyScoreChart;

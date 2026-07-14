@@ -23,17 +23,16 @@ import { api, type GrowthReportResponse } from '../lib/api';
  * - 퀴즈 정답률 → quizResults로 계산
  */
 export default function DashboardPage() {
-  const {
-    literacyScore: localLiteracy,
-    engagementScore: localEngagement,
-    comprehensionScore: localComprehension,
-    xp: localXp,
-    level: localLevel,
-    levelProgress: localLevelProgress,
-    quizResults,
-  } = useScoreStore();
-  const { progress } = useReadingStore();
-  
+  const localLiteracy = useScoreStore((s) => s.literacyScore);
+  const localEngagement = useScoreStore((s) => s.engagementScore);
+  const localComprehension = useScoreStore((s) => s.comprehensionScore);
+  const localXp = useScoreStore((s) => s.xp);
+  const localLevel = useScoreStore((s) => s.level);
+  const localLevelProgress = useScoreStore((s) => s.levelProgress);
+  const quizResults = useScoreStore((s) => s.quizResults);
+
+  const progress = useReadingStore((s) => s.progress);
+
   const { user } = useAuthStore();
   const anonId = useSessionConfig((s) => s.userId);
   const userId = user?.id || anonId;
