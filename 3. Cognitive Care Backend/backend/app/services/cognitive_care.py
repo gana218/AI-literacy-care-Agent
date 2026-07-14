@@ -100,7 +100,7 @@ def calculate_focus_score(events: List[Dict[str, Any]], baseline: Dict[str, Any]
                 score = min(100.0, score + 2.0)
 
         elif etype == "pause":
-            score -= 25.0
+            score -= 2.0
 
         elif etype == "dwell":
             meta = event.get("metadata") or {}

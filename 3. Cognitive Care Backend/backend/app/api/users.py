@@ -2,6 +2,7 @@ import json
 import asyncio
 from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, HTTPException, Depends
+from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from ..core.db import get_db
@@ -170,7 +171,7 @@ async def get_user_growth(user_id: str, db: AsyncSession = Depends(get_db)):
                         "word": word,
                         "meaning": meta.get("definition") or meta.get("meaning") or "어휘 설명이 없습니다.",
                         "level": "상" if len(word) > 3 else "중",
-                        "status": "review"
+                        "status": meta.get("status") or "review"
                     })
         
         # 2. 가장 최근 세션이 활성화 상태인 경우 Redis 버퍼에서 실시간 lookup 이벤트 추가 조회
@@ -186,7 +187,7 @@ async def get_user_growth(user_id: str, db: AsyncSession = Depends(get_db)):
                         "word": word,
                         "meaning": evt.get("definition") or "어휘 설명이 없습니다.",
                         "level": "상" if len(word) > 3 else "중",
-                        "status": "review"
+                        "status": evt.get("status") or "review"
                     })
     except Exception as e:
         print(f"Failed to fetch real lookup terms: {e}")
@@ -197,8 +198,85 @@ async def get_user_growth(user_id: str, db: AsyncSession = Depends(get_db)):
             {"word": '인공지능전환 (AX)', "meaning": 'AI 기술을 도입해 기존의 비즈니스 구조를 근본적으로 바꾸는 과정.', "level": '상', "status": 'completed'},
             {"word": '카나리아 (Canary)', "meaning": '탄광의 낙반 위험을 미리 알려주는 조기 경보 체계를 의미함.', "level": '중', "status": 'review'},
         ]
-    else:
-        words_data = words_data[:4]  # 최대 4개 제한
+
+    # 배지 동적 연동 계산
+    badges_data = []
+    total_sessions = len(sessions)
+    if total_sessions >= 1:
+        badges_data.append({
+            "id": "first-read",
+            "name": "첫 완독",
+            "emoji": "📖",
+            "description": "첫 번째 글을 끝까지 읽었어요!",
+            "acquiredAt": sorted_sessions[0].created_at.isoformat() if sorted_sessions[0].created_at else datetime.now(timezone.utc).isoformat()
+        })
+    
+    # 초집중 리더: 평균 집중도 90% 이상 혹은 단일 세션 90% 이상
+    focus_master_sess = next((s for s in sorted_sessions if (s.engagement_score or 0) >= 90), None)
+    if focus_master_sess:
+        badges_data.append({
+            "id": "focus-master",
+            "name": "초집중 리더",
+            "emoji": "🧘",
+            "description": "평균 집중도 90% 이상 달성!",
+            "acquiredAt": focus_master_sess.created_at.isoformat() if focus_master_sess.created_at else datetime.now(timezone.utc).isoformat()
+        })
+        
+    # 어휘 마스터: 용어 툴팁 10번 이상 확인
+    if len(seen_words) >= 10:
+        # 10번째 lookup 이벤트 시간 구하기
+        acq_time = datetime.now(timezone.utc).isoformat()
+        try:
+            if session_ids:
+                lookup_events_result = await db.execute(
+                    select(ReadingEvent).filter(
+                        ReadingEvent.session_id.in_(session_ids),
+                        ReadingEvent.event_type == "lookup"
+                    ).order_by(ReadingEvent.id.asc())
+                )
+                l_evs = lookup_events_result.scalars().all()
+                if len(l_evs) >= 10 and l_evs[9].created_at:
+                    acq_time = l_evs[9].created_at.isoformat()
+        except Exception:
+            pass
+            
+        badges_data.append({
+            "id": "vocab-master",
+            "name": "어휘 마스터",
+            "emoji": "🎯",
+            "description": "용어 툴팁을 10번 이상 확인했어요!",
+            "acquiredAt": acq_time
+        })
+        
+    # 3일 연속 읽기 세션 완료
+    dates = sorted(list({s.created_at.date() for s in sessions if s.created_at}))
+    has_streak = False
+    streak_date = None
+    if len(dates) >= 3:
+        for idx in range(len(dates) - 2):
+            if (dates[idx+1] - dates[idx]).days == 1 and (dates[idx+2] - dates[idx+1]).days == 1:
+                has_streak = True
+                streak_date = dates[idx+2]
+                break
+    if has_streak:
+        badges_data.append({
+            "id": "streak-3",
+            "name": "3일 연속",
+            "emoji": "🔥",
+            "description": "3일 연속 읽기 세션 완료!",
+            "acquiredAt": datetime.combine(streak_date, datetime.min.time(), tzinfo=timezone.utc).isoformat() if streak_date else datetime.now(timezone.utc).isoformat()
+        })
+        
+    # 만점왕: 리터러시 점수 95점 이상
+    high_score_sess = next((s for s in sorted_sessions if (s.literacy_score or 0) >= 95), None)
+    if high_score_sess:
+        badges_data.append({
+            "id": "high-score",
+            "name": "만점왕",
+            "emoji": "🏆",
+            "description": "리터러시 점수 95점 이상 달성!",
+            "acquiredAt": high_score_sess.created_at.isoformat() if high_score_sess.created_at else datetime.now(timezone.utc).isoformat()
+        })
 
     # 최근 활성/완료 세션 요약 지표 빌드
     latest_session_summary = {
@@ -311,7 +389,8 @@ async def get_user_growth(user_id: str, db: AsyncSession = Depends(get_db)):
         "averageLiteracyScore": round(after_lit, 1),
         "averageFocusScore": round(after_eng, 1),
         "averageComprehensionScore": round(after_comp, 1),
-        "latestSessionSummary": latest_session_summary
+        "latestSessionSummary": latest_session_summary,
+        "badges": badges_data
     }
     return report
 
@@ -327,12 +406,55 @@ def generate_empty_growth_report():
             ],
             "activityData": [],
             "words": [],
-            "prescription": ["학습 데이터가 부족합니다. 먼저 글을 읽고 세션을 완료해주세요!"]
+            "prescription": ["학습 데이터가 부족합니다. 먼저 글을 읽고 세션을 완료해주세요!"],
+            "badges": []
         },
         "monthly": {
             "radarData": [],
             "activityData": [],
             "words": [],
-            "prescription": ["학습 데이터가 부족합니다."]
-        }
+            "prescription": ["학습 데이터가 부족합니다."],
+            "badges": []
+        },
+        "badges": []
     }
+
+class VocabUpdateRequest(BaseModel):
+    word: str
+    status: str  # "completed", "review", or "deleted"
+
+@router.post("/{user_id}/vocab/update")
+async def update_user_vocab(user_id: str, req: VocabUpdateRequest, db: AsyncSession = Depends(get_db)):
+    """
+    사용자 단어장의 개별 어휘 상태 변경 또는 삭제
+    """
+    # 사용자의 모든 세션 ID 조회
+    sessions_result = await db.execute(select(ReadingSession).filter(ReadingSession.user_id == user_id))
+    sessions = sessions_result.scalars().all()
+    session_ids = [s.id for s in sessions]
+    
+    if not session_ids:
+        return {"status": "success"}
+        
+    # 해당 단어의 lookup 이벤트 조회
+    lookup_events_result = await db.execute(
+        select(ReadingEvent).filter(
+            ReadingEvent.session_id.in_(session_ids),
+            ReadingEvent.event_type == "lookup"
+        )
+    )
+    lookup_events = lookup_events_result.scalars().all()
+    
+    for ev in lookup_events:
+        meta = ev.metadata_json or {}
+        w = meta.get("term") or meta.get("word")
+        if w == req.word:
+            if req.status == "deleted":
+                await db.delete(ev)
+            else:
+                meta["status"] = req.status
+                ev.metadata_json = meta
+                db.add(ev)
+                
+    await db.commit()
+    return {"status": "success"}

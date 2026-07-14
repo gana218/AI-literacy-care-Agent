@@ -153,7 +153,7 @@ export default function DashboardPage() {
               <span style={{ color: 'var(--color-primary)' }}><Award size={16} /></span>
               배지 보관함
             </h3>
-            <BadgeShelf />
+            <BadgeShelf dbBadges={dbData?.badges} />
           </Card>
 
           {/* 세션 통계 요약 — 실시간 */}

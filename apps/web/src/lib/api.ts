@@ -168,6 +168,13 @@ export interface GrowthReportResponse {
     progress: number;
     quiz_accuracy: number;
   };
+  badges?: {
+    id: string;
+    name: string;
+    emoji: string;
+    description: string;
+    acquiredAt?: string;
+  }[];
 }
 
 // ──────────────────────────────────────────────
@@ -403,5 +410,26 @@ export const api = {
     }
 
     return { explanation: `[AI 주석] '${term}'은(는) 문맥상 중요한 개념으로, 독자의 문해력 향상을 위해 선별된 단어입니다.` };
+  },
+
+  /** 사용자 단어장의 단어 상태 업데이트 또는 삭제 */
+  updateVocabStatus: async (userId: string, word: string, status: 'completed' | 'review' | 'deleted') => {
+    console.log('[API] updateVocabStatus Request:', { userId, word, status });
+    const useMock = import.meta.env.VITE_USE_MOCK === 'true' || import.meta.env.VITE_USE_MOCK === true;
+    if (!useMock) {
+      try {
+        const res = await fetch(`${BASE_URL}/api/user/${userId}/vocab/update`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ word, status }),
+        });
+        if (res.ok) {
+          return await res.json();
+        }
+      } catch (err) {
+        console.error('[API] Failed to updateVocabStatus on server:', err);
+      }
+    }
+    return { status: 'success' };
   },
 };

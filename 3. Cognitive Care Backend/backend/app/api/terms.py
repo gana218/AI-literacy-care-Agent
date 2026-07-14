@@ -27,6 +27,25 @@ async def lookup_term_post(req: TermLookupRequest):
 
     try:
         t = lookup_term(word, req.context)
+        
+        # 실시간 단어장 연동을 위해 lookup 이벤트 캐시에 기록 (세션 종료 시 DB 저장)
+        if req.sessionId:
+            try:
+                import time
+                import json
+                from ..core.redis import get_redis
+                redis_client = await get_redis()
+                lookup_ev = {
+                    "type": "lookup",
+                    "timestamp_ms": int(time.time() * 1000),
+                    "term": word,
+                    "definition": t["definition"],
+                    "source": t["source"]
+                }
+                await redis_client.rpush(f"session:{req.sessionId}:events", json.dumps(lookup_ev))
+            except Exception as _ev_err:
+                pass
+
         return {
             "term": t["term"],
             "definition": t["definition"],

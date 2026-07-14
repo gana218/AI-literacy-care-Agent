@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { BookOpen, Zap, Target, Flame } from 'lucide-react';
+import { BookOpen, Zap, Target, Flame, Trophy } from 'lucide-react';
 import { useScoreStore } from '../../stores/scoreStore';
 
 // 전체 배지 카탈로그
@@ -9,16 +9,20 @@ const BADGE_CATALOG = [
   { id: 'focus-master',  icon: Zap,      name: '초집중 리더', desc: '평균 집중도 90% 이상 달성!' },
   { id: 'vocab-master',  icon: Target,   name: '어휘 마스터', desc: '용어 툴팁을 10번 이상 확인했어요!' },
   { id: 'streak-3',      icon: Flame,    name: '3일 연속',   desc: '3일 연속 읽기 세션 완료!' },
+  { id: 'high-score',    icon: Trophy,   name: '만점왕',     desc: '리터러시 점수 95점 이상 달성!' },
 ];
 
 interface BadgeShelfProps {
   /** true이면 이름 숨기고 아이콘만 표시 (FloatingPanel 축약형) */
   compact?: boolean;
+  /** DB에서 불러온 배지 리스트 */
+  dbBadges?: { id: string; name: string; emoji: string; description: string; acquiredAt?: string; }[];
 }
 
-export const BadgeShelf: React.FC<BadgeShelfProps> = ({ compact = false }) => {
-  const { badges } = useScoreStore();
-  const acquiredMap = new Map(badges.map((b) => [b.id, b]));
+export const BadgeShelf: React.FC<BadgeShelfProps> = ({ compact = false, dbBadges }) => {
+  const { badges: localBadges } = useScoreStore();
+  const activeBadges = dbBadges || localBadges;
+  const acquiredMap = new Map(activeBadges.map((b) => [b.id, b]));
 
   return (
     <div
