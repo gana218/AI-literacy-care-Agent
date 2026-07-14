@@ -183,7 +183,20 @@ export interface GrowthReportResponse {
 // API fetch stub (TODO 7/6 실구현)
 // ──────────────────────────────────────────────
 
-const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://127.0.0.1:8000';
+const getBaseUrl = (): string => {
+  const envUrl = import.meta.env.VITE_API_BASE_URL;
+  // Vercel 등 빌드 타임에 http://localhost:8000으로 구워져 있어도, 
+  // 브라우저 접속 도메인이 localhost가 아닐 경우 배포용 백엔드로 강제 전환
+  if (typeof window !== 'undefined') {
+    const hostname = window.location.hostname;
+    if (hostname && hostname !== 'localhost' && hostname !== '127.0.0.1') {
+      return 'https://ai-literacy-backend.onrender.com';
+    }
+  }
+  return envUrl ?? 'http://127.0.0.1:8000';
+};
+
+const BASE_URL = getBaseUrl();
 if (typeof window !== 'undefined' && window.localStorage) {
   try {
     window.localStorage.setItem('alc_backend_url', BASE_URL);
