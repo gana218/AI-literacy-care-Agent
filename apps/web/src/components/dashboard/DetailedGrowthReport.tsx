@@ -89,37 +89,69 @@ const DetailedGrowthReport = React.memo(function DetailedGrowthReport() {
   const [searchQuery, setSearchQuery] = useState('');
   const [filterLevel, setFilterLevel] = useState('all');
   const [filterStatus, setFilterStatus] = useState('all');
+  const [error, setError] = useState(false);
+
+  const loadData = async () => {
+    if (!userId) return;
+    setLoading(true);
+    setError(false);
+    try {
+      const res = await api.getGrowthReport(userId);
+      setData(res);
+    } catch (err) {
+      console.error('[GrowthReport] Failed to fetch report:', err);
+      setError(true);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   async function refetchData() {
     if (!userId) return;
     try {
       const res = await api.getGrowthReport(userId);
       setData(res);
+      setError(false);
     } catch (err) {
       console.error('[GrowthReport] Failed to refetch report:', err);
+      setError(true);
     }
   }
 
   useEffect(() => {
-    async function fetchData() {
-      if (!userId) return;
-      setLoading(true);
-      try {
-        const res = await api.getGrowthReport(userId);
-        setData(res);
-      } catch (err) {
-        console.error('[GrowthReport] Failed to fetch report:', err);
-      } finally {
-        setLoading(false);
-      }
-    }
-    fetchData();
+    loadData();
   }, [userId]);
 
-  if (loading || !data) {
+  if (loading) {
     return (
       <Card variant="default" className="p-6 space-y-6 flex justify-center items-center h-64">
         <p className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>리포트 데이터를 불러오는 중...</p>
+      </Card>
+    );
+  }
+
+  if (error || !data) {
+    return (
+      <Card variant="default" className="p-6 space-y-4 flex flex-col justify-center items-center h-64 gap-2">
+        <AlertCircle size={24} style={{ color: 'var(--color-text-muted)' }} />
+        <p className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>
+          서버로부터 성장 리포트 데이터를 불러오지 못했습니다.
+        </p>
+        <button
+          onClick={loadData}
+          style={{
+            padding: '6px 14px',
+            fontSize: '12px',
+            color: 'white',
+            backgroundColor: 'var(--color-primary)',
+            border: 'none',
+            borderRadius: '6px',
+            cursor: 'pointer',
+            fontWeight: 600,
+          }}
+        >
+          다시 시도
+        </button>
       </Card>
     );
   }
