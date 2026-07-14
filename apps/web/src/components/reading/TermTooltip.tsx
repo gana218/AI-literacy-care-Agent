@@ -26,7 +26,7 @@ export const TermTooltip: React.FC<TermTooltipProps> = ({
   const [aiDefinition, setAiDefinition] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const ref = useRef<HTMLSpanElement>(null);
-  const { sessionId, termDefinitions, setTermDefinition, showGlossesInline } = useReadingStore();
+  const { sessionId, termDefinitions, setTermDefinition, showGlossesInline, enqueueEvent } = useReadingStore();
 
   // 외부 클릭 시 닫기
   useEffect(() => {
@@ -47,7 +47,22 @@ export const TermTooltip: React.FC<TermTooltipProps> = ({
 
     // 1. 이미 캐시에 존재한다면 네트워크 요청을 하지 않고 즉시 표시
     if (termDefinitions[term]) {
-      setAiDefinition(termDefinitions[term]);
+      const cachedDef = termDefinitions[term];
+      setAiDefinition(cachedDef);
+      
+      // 사용자 드래그/클릭으로 툴팁을 명시적으로 연 경우에만 단어장에 기록
+      if (isOpen && sessionId) {
+        enqueueEvent({
+          type: 'lookup',
+          sessionId: sessionId,
+          timestamp: Date.now(),
+          payload: {
+            term: term,
+            definition: cachedDef,
+            status: 'review',
+          },
+        });
+      }
       return;
     }
 
@@ -61,6 +76,19 @@ export const TermTooltip: React.FC<TermTooltipProps> = ({
         if (active) {
           setAiDefinition(res.explanation);
           setTermDefinition(term, res.explanation); // 캐시 저장
+          
+          if (isOpen && sessionId) {
+            enqueueEvent({
+              type: 'lookup',
+              sessionId: sessionId,
+              timestamp: Date.now(),
+              payload: {
+                term: term,
+                definition: res.explanation,
+                status: 'review',
+              },
+            });
+          }
         }
       })
       .catch((err) => {
@@ -75,7 +103,7 @@ export const TermTooltip: React.FC<TermTooltipProps> = ({
     return () => {
       active = false;
     };
-  }, [isOpen, showGlossesInline, term, sessionId, aiDefinition, isLoading, termDefinitions, setTermDefinition]);
+  }, [isOpen, showGlossesInline, term, sessionId, aiDefinition, isLoading, termDefinitions, setTermDefinition, enqueueEvent]);
 
   // 7/7 추가: 상시 표시 모드(Inline Glosses)인 경우 툴팁 팝업을 건너뛰고 본문 내 인라인 배지로 렌더링
   if (showGlossesInline) {

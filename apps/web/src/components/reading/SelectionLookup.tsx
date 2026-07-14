@@ -19,6 +19,7 @@ export default function SelectionLookup() {
   const sessionId = useReadingStore((s) => s.sessionId);
   const termDefinitions = useReadingStore((s) => s.termDefinitions);
   const setTermDefinition = useReadingStore((s) => s.setTermDefinition);
+  const enqueueEvent = useReadingStore((s) => s.enqueueEvent);
 
   const [sel, setSel] = useState<SelInfo | null>(null);
   const [open, setOpen] = useState(false);
@@ -76,6 +77,16 @@ export default function SelectionLookup() {
     const cached = termDefinitions[sel.text];
     if (cached) {
       setResult({ text: cached, found: true });
+      enqueueEvent({
+        type: 'lookup',
+        sessionId: sessionId || '',
+        timestamp: Date.now(),
+        payload: {
+          term: sel.text,
+          definition: cached,
+          status: 'review',
+        },
+      });
       return;
     }
 
@@ -85,6 +96,17 @@ export default function SelectionLookup() {
       if (res.explanation && res.source !== 'not_found') {
         setResult({ text: res.explanation, found: true, source: res.source });
         setTermDefinition(sel.text, res.explanation);
+        
+        enqueueEvent({
+          type: 'lookup',
+          sessionId: sessionId || '',
+          timestamp: Date.now(),
+          payload: {
+            term: sel.text,
+            definition: res.explanation,
+            status: 'review',
+          },
+        });
       } else {
         setResult({
           text:
@@ -97,7 +119,7 @@ export default function SelectionLookup() {
     } finally {
       setLoading(false);
     }
-  }, [sel, sessionId, termDefinitions, setTermDefinition]);
+  }, [sel, sessionId, termDefinitions, setTermDefinition, enqueueEvent]);
 
   if (!sel) return null;
 
