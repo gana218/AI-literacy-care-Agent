@@ -217,14 +217,15 @@ async def get_user_growth(user_id: str, db: AsyncSession = Depends(get_db)):
             lookup_events = lookup_events_result.scalars().all()
             for ev in lookup_events:
                 meta = ev.metadata_json or {}
-                word = meta.get("term") or meta.get("word")
+                payload = meta.get("payload") or {}
+                word = payload.get("term") or meta.get("term") or meta.get("word")
                 if word and word not in seen_words:
                     seen_words.add(word)
                     words_data.append({
                         "word": word,
-                        "meaning": meta.get("definition") or meta.get("meaning") or "어휘 설명이 없습니다.",
+                        "meaning": payload.get("definition") or meta.get("definition") or meta.get("meaning") or "어휘 설명이 없습니다.",
                         "level": "상" if len(word) > 3 else "중",
-                        "status": meta.get("status") or "review"
+                        "status": payload.get("status") or meta.get("status") or "review"
                     })
         
         # 2. 가장 최근 세션이 활성화 상태인 경우 Redis 버퍼에서 실시간 lookup 이벤트 추가 조회
@@ -233,14 +234,15 @@ async def get_user_growth(user_id: str, db: AsyncSession = Depends(get_db)):
         for raw in active_events_raw:
             evt = json.loads(raw)
             if evt.get("type") == "lookup":
-                word = evt.get("term")
+                payload = evt.get("payload") or {}
+                word = payload.get("term") or evt.get("term")
                 if word and word not in seen_words:
                     seen_words.add(word)
                     words_data.append({
                         "word": word,
-                        "meaning": evt.get("definition") or "어휘 설명이 없습니다.",
+                        "meaning": payload.get("definition") or evt.get("definition") or "어휘 설명이 없습니다.",
                         "level": "상" if len(word) > 3 else "중",
-                        "status": evt.get("status") or "review"
+                        "status": payload.get("status") or evt.get("status") or "review"
                     })
     except Exception as e:
         print(f"Failed to fetch real lookup terms: {e}")
