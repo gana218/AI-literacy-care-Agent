@@ -177,6 +177,11 @@ export interface GrowthReportResponse {
     description: string;
     acquiredAt?: string;
   }[];
+  totalXp?: number;
+  level?: number;
+  averageLiteracyScore?: number;
+  averageFocusScore?: number;
+  averageComprehensionScore?: number;
 }
 
 // ──────────────────────────────────────────────

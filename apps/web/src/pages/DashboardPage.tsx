@@ -56,14 +56,21 @@ export default function DashboardPage() {
         const res = await api.getGrowthReport(userId);
         setDbData(res);
         
-        // 7/14: DB에서 불러온 주간 리터러시 스코어 시계열(weeklyScoreSeries)을 스토어에 동기화
+        // 7/14: DB에서 불러온 주간 리터러시 스코어 시계열 및 개인 누적 실측 점수들을 스토어에 동기화하여 F5 리프레시 시 일관성 유지
         if (res.weekly?.weeklyScoreSeries) {
           const mapped = res.weekly.weeklyScoreSeries.map((s) => ({
             label: s.label,
             thisWeek: s.thisWeek ?? undefined,
             lastWeek: s.lastWeek ?? undefined
           }));
-          useScoreStore.setState({ weeklyScoreSeries: mapped });
+          useScoreStore.setState({ 
+            weeklyScoreSeries: mapped,
+            literacyScore: res.averageLiteracyScore ?? 0,
+            comprehensionScore: res.averageComprehensionScore ?? 0,
+            engagementScore: res.averageFocusScore ?? 0,
+            xp: res.totalXp ?? 0,
+            level: res.level ?? 1
+          });
         }
       } catch (err) {
         console.error('[Dashboard] Failed to load user metrics:', err);

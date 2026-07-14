@@ -21,6 +21,7 @@ import { Card } from '../common/Card';
 import { api, type GrowthReportResponse } from '../../lib/api';
 import { useSessionConfig } from '../../stores/sessionConfigStore';
 import { useAuthStore } from '../../stores/authStore';
+import { useScoreStore } from '../../stores/scoreStore';
 
 // ── 커스텀 툴팁 ──────────────────────────────────────────────────────
 const CustomRadarTooltip = ({ active, payload }: any) => {
@@ -118,14 +119,29 @@ const DetailedGrowthReport = React.memo(function DetailedGrowthReport() {
     }
   }
 
-  useEffect(() => {
-    loadData();
-  }, [userId]);
+  const isFinalizing = useScoreStore((s) => s.isFinalizing);
 
-  if (loading) {
+  useEffect(() => {
+    if (!isFinalizing) {
+      loadData();
+    }
+  }, [userId, isFinalizing]);
+
+  if (isFinalizing || loading) {
     return (
-      <Card variant="default" className="p-6 space-y-6 flex justify-center items-center h-64">
-        <p className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>리포트 데이터를 불러오는 중...</p>
+      <Card variant="default" className="p-6 space-y-6 flex flex-col justify-center items-center h-64">
+        {isFinalizing ? (
+          <>
+            <p className="text-sm font-semibold text-center" style={{ color: 'var(--color-primary)' }}>
+              ⚙️ 최근 읽은 세션의 점수와 리포트를 서버에 안전하게 기록 중입니다...
+            </p>
+            <p className="text-xs text-center animate-pulse" style={{ color: 'var(--color-text-muted)', marginTop: '4px' }}>
+              잠시 후 대시보드가 자동으로 갱신됩니다.
+            </p>
+          </>
+        ) : (
+          <p className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>리포트 데이터를 불러오는 중...</p>
+        )}
       </Card>
     );
   }

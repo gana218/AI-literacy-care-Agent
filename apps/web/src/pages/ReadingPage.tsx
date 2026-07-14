@@ -57,6 +57,7 @@ export default function ReadingPage() {
       const currentScores = useScoreStore.getState();
       
       const finalize = async () => {
+        useScoreStore.getState().setFinalizing(true);
         try {
           await api.finishSession(sessionId, {
             literacy_score: currentScores.literacyScore,
@@ -91,6 +92,8 @@ export default function ReadingPage() {
           console.log('[ReadingPage] Session finalization completed.');
         } catch (err) {
           console.error('[ReadingPage] Failed to finalize reading session:', err);
+        } finally {
+          useScoreStore.getState().setFinalizing(false);
         }
       };
       
@@ -107,6 +110,7 @@ export default function ReadingPage() {
       
       if (sId && !finalized) {
         console.log('[ReadingPage] Page unmounting. Auto-finalizing session...');
+        useScoreStore.getState().setFinalizing(true);
         // 남아있는 이벤트 큐가 있다면 최신 상태 전송
         const remainingQueue = useReadingStore.getState().eventQueue;
         if (remainingQueue.length > 0) {
@@ -120,6 +124,8 @@ export default function ReadingPage() {
           engagement_score: currentScores.engagementScore,
         }).catch((err) => {
           console.error('[ReadingPage] Failed to auto-finalize session on unmount:', err);
+        }).finally(() => {
+          useScoreStore.getState().setFinalizing(false);
         });
       }
     };

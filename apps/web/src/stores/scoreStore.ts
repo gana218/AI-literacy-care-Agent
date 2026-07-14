@@ -28,6 +28,7 @@ interface ScoreState {
   weeklyScoreSeries: ScoreDataPoint[]; // 주간 요일 데이터 (대시보드 차트용)
   badges: AcquiredBadge[];
   isFinalized: boolean; // 세션 최종 서버 점수 갱신 후 가드용 플래그
+  isFinalizing: boolean; // 세션 완료 저장 중(REST api.finishSession) 플래그
 
   // 7/13: 세션 최종 결과의 문해 5대 지표 + 글 프로필(서버 산출). 미수신 시 null.
   literacyDomains: LiteracyDomains | null;
@@ -39,6 +40,7 @@ interface ScoreState {
   // 기존 액션
   setLiteracyScore: (score: number, comprehension: number, engagement: number) => void;
   setFinalized: (finalized: boolean) => void; // 완료 플래그 액션
+  setFinalizing: (finalizing: boolean) => void; // 저장 플래그 액션
   addXp: (amount: number) => void;
   setScoreSeries: (series: ScoreDataPoint[]) => void;
   addBadge: (badge: AcquiredBadge) => void;
@@ -93,6 +95,7 @@ export const useScoreStore = create<ScoreState>((set, get) => ({
   badges: [],
   quizResults: [],
   isFinalized: false,
+  isFinalizing: false,
   literacyDomains: null,
   textProfile: null,
 
@@ -101,6 +104,7 @@ export const useScoreStore = create<ScoreState>((set, get) => ({
     set({ literacyScore, comprehensionScore, engagementScore }),
 
   setFinalized: (isFinalized) => set({ isFinalized }),
+  setFinalizing: (isFinalizing) => set({ isFinalizing }),
 
   addXp: (amount) =>
     set((s) => {
@@ -167,6 +171,7 @@ export const useScoreStore = create<ScoreState>((set, get) => ({
       badges: [],
       quizResults: [],
       isFinalized: false,
+      isFinalizing: false,
     }),
 
   reset: () =>
@@ -175,5 +180,6 @@ export const useScoreStore = create<ScoreState>((set, get) => ({
       xp: 0, level: 1, levelProgress: 0,
       scoreSeries: [], badges: [], quizResults: [],
       isFinalized: false,
+      isFinalizing: false,
     }),
 }));

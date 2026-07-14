@@ -134,8 +134,17 @@ export const LiteracyScoreChart: React.FC<LiteracyScoreChartProps> = React.memo(
     });
   }, [weeklyScoreSeries, DAYS]);
 
-  // 데이터 없음(정보 없음) 처리
-  const hasData = weeklyScoreSeries.length > 0;
+  const maxGap = useMemo(() => {
+    if (weeklyScoreSeries.length < 2) return 0;
+    return Math.max(...weeklyScoreSeries.map((d: ScoreDataPoint) => (d.thisWeek || 0) - (d.lastWeek || 0)));
+  }, [weeklyScoreSeries]);
+
+  // 가장 최근 유효한(null/undefined가 아닌) 이번 주 점수 찾기
+  const latestWeeklyPoint = [...weeklyScoreSeries].reverse().find(d => d.thisWeek !== null && d.thisWeek !== undefined);
+  const currentScore = latestWeeklyPoint ? latestWeeklyPoint.thisWeek : literacyScore;
+
+  // 데이터 없음(정보 없음) 처리 (모든 요일의 점수가 비어있는 경우도 데이터 없음으로 간주)
+  const hasData = weeklyScoreSeries.length > 0 && weeklyScoreSeries.some(d => d.thisWeek !== null && d.thisWeek !== undefined || d.lastWeek !== null && d.lastWeek !== undefined);
 
   if (!hasData) {
     return (
@@ -146,16 +155,6 @@ export const LiteracyScoreChart: React.FC<LiteracyScoreChartProps> = React.memo(
       </div>
     );
   }
-
-  // 최대 향상폭 계산 (배지/헤더 표시용)
-  const maxGap = useMemo(() => {
-    if (weeklyScoreSeries.length < 2) return 0;
-    return Math.max(...weeklyScoreSeries.map((d: ScoreDataPoint) => (d.thisWeek || 0) - (d.lastWeek || 0)));
-  }, [weeklyScoreSeries]);
-
-  const currentScore = weeklyScoreSeries.length > 0
-    ? weeklyScoreSeries[weeklyScoreSeries.length - 1].thisWeek
-    : literacyScore;
 
   return (
     <div>
@@ -255,7 +254,7 @@ export const LiteracyScoreChart: React.FC<LiteracyScoreChartProps> = React.memo(
           {/* 케어 미적용 (점선) */}
           <Line
             type="monotone"
-            dataKey="before"
+            dataKey="lastWeek"
             name="케어 미적용"
             stroke="var(--color-text-muted)"
             strokeWidth={2}
@@ -270,7 +269,7 @@ export const LiteracyScoreChart: React.FC<LiteracyScoreChartProps> = React.memo(
           {/* 케어 적용 (실선 — 라이브 Dot 포함, 시인성 대폭 강화) */}
           <Line
             type="monotone"
-            dataKey="after"
+            dataKey="thisWeek"
             name="케어 적용"
             stroke="var(--color-primary)"
             strokeWidth={4}

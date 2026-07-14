@@ -137,7 +137,25 @@ async def get_user_growth(user_id: str, db: AsyncSession = Depends(get_db)):
 
     # M1: 5대 지표 실측 신호 기반 정직한 파생
     sorted_sessions = sorted(sessions, key=lambda s: s.created_at if s.created_at else datetime.min.replace(tzinfo=timezone.utc))
-    first_session = sorted_sessions[0]
+    
+    # 7/15: 완독(완료)된 세션들만 필터링하여 성장 지표 및 누적 평균 산출에 사용 (활성 세션의 None 값 희석 방지)
+    completed_sessions = [s for s in sorted_sessions if s.finished_at is not None]
+    
+    # 첫 세션 (케어 전 baseline) 및 전체 세션 평균 (케어 적용 후) 산출
+    if completed_sessions:
+        first_session = completed_sessions[0]
+        before_eng = first_session.engagement_score or 50.0
+        before_comp = first_session.comprehension_score or 50.0
+        before_lit = first_session.literacy_score or 50.0
+        
+        after_eng = sum((s.engagement_score or 50.0) for s in completed_sessions) / len(completed_sessions)
+        after_comp = sum((s.comprehension_score or 50.0) for s in completed_sessions) / len(completed_sessions)
+        after_lit = sum((s.literacy_score or 50.0) for s in completed_sessions) / len(completed_sessions)
+    else:
+        # 완료 세션이 없는 경우, 임시로 첫 세션을 baseline으로 잡되 점수는 50.0(최초 기준선)으로 고정
+        first_session = sorted_sessions[0]
+        before_eng = before_comp = before_lit = 50.0
+        after_eng = after_comp = after_lit = 50.0
     
     # 실제 활동(퀴즈 풀이 결과가 존재하거나, DB 이벤트가 있거나, Redis 실시간 이벤트가 존재하거나, 점수가 있거나 완독됨)
     session_ids_with_quizzes = set((await db.execute(select(QuizResult.session_id).distinct())).scalars().all())
@@ -166,16 +184,6 @@ async def get_user_growth(user_id: str, db: AsyncSession = Depends(get_db)):
     if not active_sessions:
         active_sessions = sorted_sessions
     latest_active_session = active_sessions[-1]
-    
-    # 첫 세션 (케어 전 baseline)
-    before_eng = first_session.engagement_score or 50.0
-    before_comp = first_session.comprehension_score or 50.0
-    before_lit = first_session.literacy_score or 50.0
-    
-    # 전체 세션 평균 (케어 적용 후)
-    after_eng = sum((s.engagement_score or 50.0) for s in sessions) / len(sessions)
-    after_comp = sum((s.comprehension_score or 50.0) for s in sessions) / len(sessions)
-    after_lit = sum((s.literacy_score or 50.0) for s in sessions) / len(sessions)
 
     # 문해 5대 지표(v2): 저장된 literacy_domains 실측 평균. before=첫 세션, after=전체 평균.
     DOMAIN_LABELS = [
@@ -185,7 +193,7 @@ async def get_user_growth(user_id: str, db: AsyncSession = Depends(get_db)):
         ("challenge", "난이도 도전력"),
         ("stability", "읽기 안정성"),
     ]
-    dsessions = [s for s in sorted_sessions if isinstance(s.literacy_domains, dict) and s.literacy_domains]
+    dsessions = [s for s in completed_sessions if isinstance(s.literacy_domains, dict) and s.literacy_domains]
 
     def _dom(sess, key: str) -> float:
         return float((sess.literacy_domains or {}).get(key, 0) or 0)
@@ -256,18 +264,18 @@ async def get_user_growth(user_id: str, db: AsyncSession = Depends(get_db)):
 
     # 배지 동적 연동 계산
     badges_data = []
-    total_sessions = len(sessions)
+    total_sessions = len(completed_sessions)
     if total_sessions >= 1:
         badges_data.append({
             "id": "first-read",
             "name": "첫 완독",
             "emoji": "📖",
             "description": "첫 번째 글을 끝까지 읽었어요!",
-            "acquiredAt": sorted_sessions[0].created_at.isoformat() if sorted_sessions[0].created_at else datetime.now(timezone.utc).isoformat()
+            "acquiredAt": completed_sessions[0].created_at.isoformat() if completed_sessions[0].created_at else datetime.now(timezone.utc).isoformat()
         })
     
     # 초집중 리더: 평균 집중도 90% 이상 혹은 단일 세션 90% 이상
-    focus_master_sess = next((s for s in sorted_sessions if (s.engagement_score or 0) >= 90), None)
+    focus_master_sess = next((s for s in completed_sessions if (s.engagement_score or 0) >= 90), None)
     if focus_master_sess:
         badges_data.append({
             "id": "focus-master",
@@ -304,7 +312,7 @@ async def get_user_growth(user_id: str, db: AsyncSession = Depends(get_db)):
         })
         
     # 3일 연속 읽기 세션 완료
-    dates = sorted(list({s.created_at.date() for s in sessions if s.created_at}))
+    dates = sorted(list({s.created_at.date() for s in completed_sessions if s.created_at}))
     has_streak = False
     streak_date = None
     if len(dates) >= 3:
@@ -323,7 +331,7 @@ async def get_user_growth(user_id: str, db: AsyncSession = Depends(get_db)):
         })
         
     # 만점왕: 리터러시 점수 95점 이상
-    high_score_sess = next((s for s in sorted_sessions if (s.literacy_score or 0) >= 95), None)
+    high_score_sess = next((s for s in completed_sessions if (s.literacy_score or 0) >= 95), None)
     if high_score_sess:
         badges_data.append({
             "id": "high-score",
@@ -430,16 +438,16 @@ async def get_user_growth(user_id: str, db: AsyncSession = Depends(get_db)):
 
     # M1-2. 주간 리터러시 점수 추이 (주간 비교 차트용)
     weekly_score_series = []
-    if sessions:
+    if completed_sessions:
         for idx, day_name in enumerate(weekday_names):
-            day_sessions = [s for s in sessions if s.created_at and s.created_at.weekday() == idx]
-            active_day_sessions = [s for s in day_sessions if s.id != first_session.id]
+            day_sessions = [s for s in completed_sessions if s.created_at and s.created_at.weekday() == idx]
+            active_day_sessions = [s for s in day_sessions if s.id != completed_sessions[0].id]
             
             this_week_val = None
             if active_day_sessions:
                 this_week_val = round(sum((s.literacy_score or 50.0) for s in active_day_sessions) / len(active_day_sessions), 1)
-            elif day_sessions and len(sessions) == 1:
-                this_week_val = round(first_session.literacy_score or 50.0, 1)
+            elif day_sessions and len(completed_sessions) == 1:
+                this_week_val = round(completed_sessions[0].literacy_score or 50.0, 1)
                 
             last_week_val = round(before_lit, 1)
             weekly_score_series.append({

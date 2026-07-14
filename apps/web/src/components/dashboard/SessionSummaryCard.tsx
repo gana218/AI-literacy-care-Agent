@@ -36,6 +36,8 @@ export const SessionSummaryCard: React.FC<SessionSummaryCardProps> = React.memo(
   // 이번 세션에서 획득한 배지 (최근 2개 이내)
   const sessionBadges = badges.slice(-2);
 
+  const isFinalized = useScoreStore((s) => s.isFinalized);
+
   return (
     <AnimatePresence>
       {isVisible && (
@@ -167,30 +169,49 @@ export const SessionSummaryCard: React.FC<SessionSummaryCardProps> = React.memo(
               </motion.button>
               
               <motion.div
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
+                whileHover={isFinalized ? { scale: 1.02 } : {}}
+                whileTap={isFinalized ? { scale: 0.98 } : {}}
                 style={{ flex: 1 }}
               >
-                <Link
-                  to="/dashboard"
-                  style={{
-                    display: 'block',
-                    textAlign: 'center',
-                    padding: 'var(--space-3)',
-                    borderRadius: 'var(--radius-md)',
-                    backgroundColor: 'var(--color-primary)',
-                    color: '#fff',
-                    fontSize: 'var(--text-sm)',
-                    fontWeight: 700,
-                    fontFamily: 'var(--font-sans)',
-                    textDecoration: 'none',
-                    transition: 'opacity 0.2s',
-                  }}
-                  onMouseEnter={(e) => ((e.currentTarget as HTMLAnchorElement).style.opacity = '0.85')}
-                  onMouseLeave={(e) => ((e.currentTarget as HTMLAnchorElement).style.opacity = '1')}
-                >
-                  📊 성장 대시보드 보기
-                </Link>
+                {isFinalized ? (
+                  <Link
+                    to="/dashboard"
+                    style={{
+                      display: 'block',
+                      textAlign: 'center',
+                      padding: 'var(--space-3)',
+                      borderRadius: 'var(--radius-md)',
+                      backgroundColor: 'var(--color-primary)',
+                      color: '#fff',
+                      fontSize: 'var(--text-sm)',
+                      fontWeight: 700,
+                      fontFamily: 'var(--font-sans)',
+                      textDecoration: 'none',
+                      transition: 'opacity 0.2s',
+                    }}
+                    onMouseEnter={(e) => ((e.currentTarget as HTMLAnchorElement).style.opacity = '0.85')}
+                    onMouseLeave={(e) => ((e.currentTarget as HTMLAnchorElement).style.opacity = '1')}
+                  >
+                    📊 성장 대시보드 보기
+                  </Link>
+                ) : (
+                  <div
+                    style={{
+                      display: 'block',
+                      textAlign: 'center',
+                      padding: 'var(--space-3)',
+                      borderRadius: 'var(--radius-md)',
+                      backgroundColor: 'var(--color-border)',
+                      color: 'var(--color-text-muted)',
+                      fontSize: 'var(--text-sm)',
+                      fontWeight: 700,
+                      fontFamily: 'var(--font-sans)',
+                      cursor: 'not-allowed',
+                    }}
+                  >
+                    ⚙️ 결과 분석 및 저장 중...
+                  </div>
+                )}
               </motion.div>
             </div>
           </div>
