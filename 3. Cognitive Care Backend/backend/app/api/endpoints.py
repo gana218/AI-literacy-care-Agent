@@ -3,10 +3,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 import uuid
 import json
+from datetime import datetime, timezone
 
 from ..core.db import get_db
 from ..core.redis import get_redis
-from ..models.models import ReadingSession, ReadingEvent, User
+from ..models.models import ReadingSession, ReadingEvent, User, QuizResult
 from ..schemas.schemas import (
     SessionStartRequest, SessionStartResponse, SessionFinishRequest, SessionFinishResponse, EventsRequestModel,
     QuizSubmitRequest, QuizSubmitResponse, TermExplainRequest, TermExplainResponse
