@@ -203,6 +203,7 @@ export default function ReadingPage() {
       // 7/13: 새 글을 읽을 때 이전 집중도와 상태가 유지되는 버그 수정
       useFocusStore.getState().reset();
       useReadingStore.getState().reset();
+      useScoreStore.getState().reset();
       try {
         const cfg = useSessionConfig.getState();
         const isUpload =

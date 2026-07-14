@@ -321,8 +321,12 @@ async def get_user_growth(user_id: str, db: AsyncSession = Depends(get_db)):
                 events_list = [ev.metadata_json for ev in db_evs.scalars().all() if ev.metadata_json]
                 
             progress_events = [e for e in events_list if e.get("type") == "progress"]
+            scroll_events = [e for e in events_list if e.get("type") == "scroll"]
             if progress_events:
                 progress_val = progress_events[-1].get("progress", 0)
+            elif scroll_events:
+                max_pos = max((e.get("position") or 0.0) for e in scroll_events)
+                progress_val = int(max_pos * 100)
             else:
                 read_indices = {e.get("chunk_idx") for e in events_list if e.get("type") == "read" and e.get("chunk_idx") is not None}
                 chunks_raw = await redis_client.get(f"session:{latest_session.id}:chunks")

@@ -447,6 +447,30 @@ async def finish_session(
         session.comprehension_score = final_state.get("score_breakdown", {}).get("comprehension_score", req.comprehension_score)
         session.engagement_score = final_state.get("score_breakdown", {}).get("engagement_score", req.engagement_score)
         
+        # 4-0. 독해 세션 시간(duration_seconds) 및 종료 시각 계산 후 저장
+        try:
+            duration_sec = 0
+            if state_events:
+                sorted_events = sorted(state_events, key=lambda e: e.get("timestamp_ms", 0))
+                if len(sorted_events) >= 2:
+                    start_ts = sorted_events[0].get("timestamp_ms", 0)
+                    end_ts = sorted_events[-1].get("timestamp_ms", 0)
+                    duration_sec = max(0, int((end_ts - start_ts) / 1000.0))
+            
+            # Fallback: 만약 이벤트 기록이 없거나 0초 이하인 경우 세션 생성 시각과 완료 시각의 차이로 계산
+            if duration_sec <= 0 and session.created_at:
+                from datetime import timezone
+                now_utc = datetime.now(timezone.utc)
+                sess_created = session.created_at
+                if sess_created.tzinfo is None:
+                    sess_created = sess_created.replace(tzinfo=timezone.utc)
+                duration_sec = max(0, int((now_utc - sess_created).total_seconds()))
+                
+            session.duration_seconds = duration_sec
+            session.finished_at = datetime.now(timezone.utc)
+        except Exception as _dur_err:
+            print(f"Failed to calculate session duration on finish: {_dur_err}")
+            
         # 4-1. 퀴즈 정답 결과로 총 획득 XP 산출 후 저장
         try:
             quiz_results_res = await db.execute(
