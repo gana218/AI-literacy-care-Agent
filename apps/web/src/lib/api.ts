@@ -379,9 +379,12 @@ export const api = {
         if (res.ok) {
           const data = await res.json();
           return data;
+        } else {
+          throw new Error(`Server returned status ${res.status}`);
         }
       } catch (err) {
         console.error('[API] Failed to getGrowthReport from server:', err);
+        throw err;
       }
     }
     return {
